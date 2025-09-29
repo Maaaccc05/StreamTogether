@@ -216,3 +216,83 @@ body {
 .text-gray-400 {
   color: #9ca3af;
 }
+
+/* YouTube player responsive styling */
+.aspect-video {
+  aspect-ratio: 16 / 9;
+}
+
+.min-h-\[500px\] {
+  min-height: 500px;
+}
+
+/* Ensure video container fills available space */
+.h-\[calc\(100vh-300px\)\] {
+  height: calc(100vh - 300px);
+}
+
+/* Force full width for video components */
+.video-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* YouTube iframe styling */
+iframe {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 70vh !important;
+}
+
+/* YouTube player container */
+.youtube-player {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 70vh !important;
+}
+
+/* Ensure participants section is visible */
+.flex-shrink-0 {
+  flex-shrink: 0;
+}
+
+.min-h-0 {
+  min-height: 0;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 640px) {
+  iframe {
+    min-height: 40vh !important;
+  }
+  
+  .youtube-player {
+    min-height: 40vh !important;
+  }
+  
+  /* Ensure mobile video takes reasonable height */
+  .video-container-mobile {
+    height: 40vh !important;
+    min-height: 40vh !important;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  iframe {
+    min-height: 50vh !important;
+  }
+  
+  .youtube-player {
+    min-height: 50vh !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  iframe {
+    min-height: 70vh !important;
+  }
+  
+  .youtube-player {
+    min-height: 70vh !important;
+  }
+}

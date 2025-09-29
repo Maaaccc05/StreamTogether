@@ -29,27 +29,27 @@ const Chat = ({ messages, onSendMessage, currentUsername }) => {
   return (
     <div className="flex flex-col h-full">
       {/* Chat Header */}
-      <div className="p-4 border-b border-gray-700">
-        <h3 className="text-white font-semibold flex items-center">
+      <div className="p-3 sm:p-4 border-b border-gray-700">
+        <h3 className="text-white font-semibold flex items-center text-sm sm:text-base">
           💬 Chat
-          <span className="ml-2 text-sm text-gray-400">
+          <span className="ml-2 text-xs sm:text-sm text-gray-400">
             ({messages.length} messages)
           </span>
         </h3>
       </div>
 
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 sm:space-y-3">
         {messages.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
-            <div className="text-4xl mb-2">👋</div>
-            <p>No messages yet. Start the conversation!</p>
+          <div className="text-center text-gray-500 py-6 sm:py-8">
+            <div className="text-3xl sm:text-4xl mb-2">👋</div>
+            <p className="text-sm sm:text-base">No messages yet. Start the conversation!</p>
           </div>
         ) : (
           messages.map((message) => (
             <div key={message.id} className="group">
               {message.type === 'system' ? (
-                <div className="text-center text-gray-400 text-sm py-1">
+                <div className="text-center text-gray-400 text-xs sm:text-sm py-1">
                   <span className="bg-gray-700 px-2 py-1 rounded">
                     {message.message}
                   </span>
@@ -61,7 +61,7 @@ const Chat = ({ messages, onSendMessage, currentUsername }) => {
                 <div className={`flex flex-col ${
                   message.username === currentUsername ? 'items-end' : 'items-start'
                 }`}>
-                  <div className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                  <div className={`max-w-[85%] sm:max-w-[80%] rounded-lg px-2 sm:px-3 py-1 sm:py-2 ${
                     message.username === currentUsername
                       ? 'bg-purple-600 text-white'
                       : 'bg-gray-700 text-gray-100'
@@ -71,7 +71,7 @@ const Chat = ({ messages, onSendMessage, currentUsername }) => {
                         {message.username}
                       </div>
                     )}
-                    <div className="break-words">{message.message}</div>
+                    <div className="break-words text-sm sm:text-base">{message.message}</div>
                   </div>
                   <div className="text-xs text-gray-500 mt-1 px-1">
                     {message.timestamp}
@@ -85,7 +85,7 @@ const Chat = ({ messages, onSendMessage, currentUsername }) => {
       </div>
 
       {/* Message Input */}
-      <div className="p-4 border-t border-gray-700">
+      <div className="p-3 sm:p-4 border-t border-gray-700">
         <form onSubmit={handleSubmit} className="flex gap-2">
           <input
             ref={inputRef}
@@ -93,18 +93,18 @@ const Chat = ({ messages, onSendMessage, currentUsername }) => {
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder="Type a message..."
-            className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="flex-1 px-2 sm:px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
             maxLength={500}
           />
           <button
             type="submit"
             disabled={!inputMessage.trim()}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
           >
             Send
           </button>
         </form>
-        <div className="text-xs text-gray-500 mt-2">
+        <div className="text-xs text-gray-500 mt-1 sm:mt-2">
           Press Enter to send • {inputMessage.length}/500
         </div>
       </div>
