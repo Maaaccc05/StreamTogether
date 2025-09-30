@@ -7,7 +7,7 @@ import path from 'path'
 const app = express()
 const server = createServer(app)
 
-// I won't recommend to use
+// I won't recommend this
 
 // const url = `https://streamtogether-backend-n8nm.onrender.com`;
 // const interval = 30000;
@@ -23,7 +23,7 @@ const server = createServer(app)
 //     });
 // }
 
-setInterval(reloadWebsite, interval);
+// setInterval(reloadWebsite, interval);
 // Configure CORS for Socket.IO
 const allowedOrigins = [
   "http://localhost:5173",
