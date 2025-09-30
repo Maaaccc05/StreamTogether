@@ -2,29 +2,30 @@ import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
+import path from 'path'
 
 const app = express()
 const server = createServer(app)
 
-const url = ``;
-const interval = 30000;
+// const url = ``;
+// const interval = 30000;
 
-function reloadWebsite() {
-  axios
-    .get(url)
-    .then((response) => {
-      console.log("website reloded");
-    })
-    .catch((error) => {
-      console.error(`Error : ${error.message}`);
-    });
-}
+// function reloadWebsite() {
+//   axios
+//     .get(url)
+//     .then((response) => {
+//       console.log("website reloded");
+//     })
+//     .catch((error) => {
+//       console.error(`Error : ${error.message}`);
+//     });
+// }
 
-setInterval(reloadWebsite, interval);
+// setInterval(reloadWebsite, interval);
 // Configure CORS for Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", /
+    origin: "http://localhost:5173", 
     methods: ["GET", "POST"]
   }
 });
