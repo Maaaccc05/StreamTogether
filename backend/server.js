@@ -66,6 +66,26 @@ app.use(cors({
 }));
 app.use(express.json())
 
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'StreamTogether Backend is running!', 
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    rooms: rooms.size
+  });
+});
+
+// API status endpoint
+app.get('/api/status', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    uptime: process.uptime(),
+    rooms: rooms.size,
+    memory: process.memoryUsage()
+  });
+});
+
 // Store room data
 const rooms = new Map()
 
