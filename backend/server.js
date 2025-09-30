@@ -23,14 +23,47 @@ const server = createServer(app)
 
 // setInterval(reloadWebsite, interval);
 // Configure CORS for Socket.IO
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://localhost:5173",
+  process.env.FRONTEND_URL, // Set this in Render environment variables
+  // Add your Render frontend URL pattern
+];
+
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", 
-    methods: ["GET", "POST"]
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, etc.)
+      if (!origin) return callback(null, true);
+      
+      // Check if origin is in allowed list or matches Render pattern
+      if (allowedOrigins.includes(origin) || 
+          origin.includes('onrender.com') || 
+          origin.includes('localhost')) {
+        return callback(null, true);
+      }
+      
+      callback(new Error('Not allowed by CORS'));
+    },
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
-app.use(cors())
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin) || 
+        origin.includes('onrender.com') || 
+        origin.includes('localhost')) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(express.json())
 
 // Store room data

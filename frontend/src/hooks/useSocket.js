@@ -23,7 +23,10 @@ const useSocket = (roomId, username) => {
     console.log('Connecting to socket for room:', roomId, 'user:', username)
     
     // Connect to server
-    const newSocket = io('http://localhost:3001', {
+    const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+    console.log('Connecting to server:', serverUrl);
+    
+    const newSocket = io(serverUrl, {
       forceNew: false,  // Don't force new connection
       autoConnect: true,
       transports: ['polling', 'websocket'],  // Try polling first, then websocket
