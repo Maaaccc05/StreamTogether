@@ -7,19 +7,21 @@ import path from 'path'
 const app = express()
 const server = createServer(app)
 
-const url = `https://streamtogether-backend-n8nm.onrender.com`;
-const interval = 30000;
+// I won't recommend to use
 
-function reloadWebsite() {
-  axios
-    .get(url)
-    .then((response) => {
-      console.log("website reloded");
-    })
-    .catch((error) => {
-      console.error(`Error : ${error.message}`);
-    });
-}
+// const url = `https://streamtogether-backend-n8nm.onrender.com`;
+// const interval = 30000;
+
+// function reloadWebsite() {
+//   axios
+//     .get(url)
+//     .then((response) => {
+//       console.log("website reloded");
+//     })
+//     .catch((error) => {
+//       console.error(`Error : ${error.message}`);
+//     });
+// }
 
 setInterval(reloadWebsite, interval);
 // Configure CORS for Socket.IO
