@@ -6,10 +6,25 @@ import cors from 'cors'
 const app = express()
 const server = createServer(app)
 
+const url = ``;
+const interval = 30000;
+
+function reloadWebsite() {
+  axios
+    .get(url)
+    .then((response) => {
+      console.log("website reloded");
+    })
+    .catch((error) => {
+      console.error(`Error : ${error.message}`);
+    });
+}
+
+setInterval(reloadWebsite, interval);
 // Configure CORS for Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // Vite's default port
+    origin: "http://localhost:5173", /
     methods: ["GET", "POST"]
   }
 });
