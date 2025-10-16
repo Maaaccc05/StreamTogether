@@ -85,7 +85,6 @@ const useSocket = (roomId, username) => {
 
     newSocket.on('user-left', ({ username: leftUsername, users }) => {
       setRoomState(prev => ({ ...prev, users }));
-      // Note: Leave message is now handled by server and sent via chat-message event
     });
 
     newSocket.on('new-host', ({ hostId }) => {
