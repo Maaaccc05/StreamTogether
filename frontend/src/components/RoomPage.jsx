@@ -112,7 +112,7 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
             {reconnecting ? 'Video has been paused for all users during reconnection' : 'Please wait while we restore your session'}
           </p>
           
-          {connectionTimeout && (
+          {/* {connectionTimeout && (
             <div className="mt-6 p-4 bg-gray-800 rounded-lg max-w-md mx-auto">
               <p className="text-yellow-400 text-sm mb-3">Connection is taking longer than expected</p>
               <button
@@ -122,7 +122,7 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
                 Return to Home & Try Again
               </button>
             </div>
-          )}
+          )} */}
         </div>
       </div>
     )
