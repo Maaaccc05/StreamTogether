@@ -22,14 +22,7 @@ A real-time video streaming platform that allows users to watch YouTube videos t
 - npm
 
 ### Installation
-
-1. Clone the repository
-```bash
-git clone https://github.com/your-username/streaming-platform.git
-cd streaming-platform
-```
-
-2. Install dependencies
+1. Install dependencies
 ```bash
 # Backend
 cd backend
@@ -40,7 +33,7 @@ cd ../frontend
 npm install
 ```
 
-3. Start development servers
+2. Start development servers
 ```bash
 # Terminal 1 - Backend
 cd backend
@@ -51,7 +44,7 @@ cd frontend
 npm run dev
 ```
 
-4. Open http://localhost:5173
+3. Open http://localhost:5173
 
 ## Usage
 
