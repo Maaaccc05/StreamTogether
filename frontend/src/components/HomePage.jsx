@@ -36,7 +36,7 @@ const HomePage = ({ onJoinRoom }) => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
       <div className="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">
@@ -52,7 +52,7 @@ const HomePage = ({ onJoinRoom }) => {
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Room ID
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 value={roomId}
