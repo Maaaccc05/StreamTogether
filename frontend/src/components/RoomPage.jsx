@@ -106,10 +106,10 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
           <p className="text-white text-lg">
-            {reconnecting ? 'Reconnecting to room' : 'Connecting to room'} {roomId}...
+            {reconnecting ? 'Connecting to room' : 'Connecting to room'} {roomId}...
           </p>
           <p className="text-gray-400 text-sm mt-2">
-            {reconnecting ? 'Video has been paused for all users during reconnection' : 'Please wait while we restore your session'}
+            {reconnecting ? 'Loading...' : 'Please wait while we restore your session'}
           </p>
           
           {/* {connectionTimeout && (
