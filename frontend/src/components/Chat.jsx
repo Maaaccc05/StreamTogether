@@ -19,13 +19,6 @@ const Chat = ({ messages, onSendMessage, currentUsername }) => {
     }
   }
 
-  const formatTime = (timestamp) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    })
-  }
-
   return (
     <div className="flex flex-col h-full min-h-[220px] sm:min-h-[300px] bg-gray-900 sm:bg-transparent">
       {/* Chat Header */}
@@ -55,9 +48,6 @@ const Chat = ({ messages, onSendMessage, currentUsername }) => {
                   <span className="bg-gray-700 px-2 py-1 rounded break-words">
                     {message.message}
                   </span>
-                  <span className="ml-2 text-[10px] sm:text-xs">
-                    {message.timestamp}
-                  </span>
                 </div>
               ) : (
                 <div
@@ -82,9 +72,6 @@ const Chat = ({ messages, onSendMessage, currentUsername }) => {
                     <div className="break-words text-sm sm:text-base leading-snug sm:leading-normal">
                       {message.message}
                     </div>
-                  </div>
-                  <div className="text-[10px] sm:text-xs text-gray-500 mt-1 px-1">
-                    {message.timestamp}
                   </div>
                 </div>
               )}
