@@ -146,6 +146,13 @@ const useSocket = (roomId, username) => {
       })
     })
 
+    // Reaction updates — patch the specific message's reactions in state
+    newSocket.on('reaction-updated', ({ messageId, reactions }) => {
+      setMessages(prev =>
+        prev.map(m => m.id === messageId ? { ...m, reactions } : m)
+      )
+    })
+
     // Backup chat history handler
     newSocket.on('chat-history', ({ chatHistory }) => {
       console.log('Received backup chat history:', chatHistory.length, 'messages')
@@ -187,9 +194,15 @@ const useSocket = (roomId, username) => {
     }
   };
 
-  const sendMessage = (message) => {
+  const sendMessage = (message, replyTo = null) => {
     if (socket && message.trim()) {
-      socket.emit('chat-message', { roomId, message });
+      socket.emit('chat-message', { roomId, message, ...(replyTo ? { replyTo } : {}) });
+    }
+  };
+
+  const sendReaction = (messageId, emoji) => {
+    if (socket) {
+      socket.emit('react-message', { roomId, messageId, emoji });
     }
   };
 
@@ -202,7 +215,8 @@ const useSocket = (roomId, username) => {
     playVideo,
     pauseVideo,
     seekVideo,
-    sendMessage
+    sendMessage,
+    sendReaction
   };
 };
 

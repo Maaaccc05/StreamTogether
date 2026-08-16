@@ -13,7 +13,8 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
     playVideo, 
     pauseVideo, 
     seekVideo, 
-    sendMessage 
+    sendMessage,
+    sendReaction
   } = useSocket(roomId, username)
 
   const [showChat, setShowChat] = useState(true)
@@ -220,7 +221,8 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
           <div className="w-full lg:w-80 bg-gray-800 border-t lg:border-t-0 lg:border-l border-gray-700 flex flex-col flex-shrink-0 h-64 lg:h-auto">
             <Chat
               messages={messages}
-              onSendMessage={sendMessage}
+              onSendMessage={(msg, replyTo) => sendMessage(msg, replyTo)}
+              onReact={sendReaction}
               currentUsername={username}
             />
           </div>

@@ -234,7 +234,7 @@ io.on('connection', (socket) => {
   })
 
   // Handle chat messages
-  socket.on('chat-message', ({ roomId, message }) => {
+  socket.on('chat-message', ({ roomId, message, replyTo }) => {
     const room = rooms.get(roomId)
     if (room && room.users.has(socket.id)) {
       const user = room.users.get(socket.id)
@@ -243,7 +243,8 @@ io.on('connection', (socket) => {
         username: user.username,
         message,
         timestamp: new Date().toLocaleTimeString(),
-        type: 'user'
+        type: 'user',
+        ...(replyTo ? { replyTo } : {})
       }
       
       // Store message in room's chat history
@@ -259,6 +260,34 @@ io.on('connection', (socket) => {
       
       console.log(`Chat message stored for room ${roomId}:`, chatMessage.message)
       console.log(`Total messages in room ${roomId}:`, room.chatHistory.length)
+    }
+  })
+
+  // Handle emoji reactions
+  socket.on('react-message', ({ roomId, messageId, emoji }) => {
+    const room = rooms.get(roomId)
+    if (room && room.users.has(socket.id)) {
+      const user = room.users.get(socket.id)
+      // Find the message in chat history
+      const msg = room.chatHistory.find(m => m.id === messageId)
+      if (msg) {
+        if (!msg.reactions) msg.reactions = {}
+        if (!msg.reactions[emoji]) msg.reactions[emoji] = []
+        const idx = msg.reactions[emoji].indexOf(user.username)
+        if (idx === -1) {
+          // Add reaction
+          msg.reactions[emoji].push(user.username)
+        } else {
+          // Toggle off
+          msg.reactions[emoji].splice(idx, 1)
+          if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji]
+        }
+        // Broadcast updated reactions for this message to the whole room
+        io.to(roomId).emit('reaction-updated', {
+          messageId,
+          reactions: msg.reactions
+        })
+      }
     }
   })
 
