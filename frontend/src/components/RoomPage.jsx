@@ -24,6 +24,7 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
   const [unreadCount, setUnreadCount] = useState(0)
   const [lastSeenMessageId, setLastSeenMessageId] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showUsersModal, setShowUsersModal] = useState(false)
   const menuRef = useRef(null)
 
   // Copy room code to clipboard
@@ -230,7 +231,7 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
 
             {/* Dropdown menu */}
             {menuOpen && (
-              <div className="hamburger-dropdown absolute right-0 top-full mt-2 w-44 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden z-50">
+              <div className="hamburger-dropdown absolute right-0 top-full mt-2 w-48 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden z-50">
                 <button
                   onClick={handleChatToggle}
                   className="relative w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-gray-700 active:bg-gray-700 transition-colors text-left"
@@ -242,6 +243,14 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
+                </button>
+                <div className="h-px bg-gray-700" />
+                <button
+                  onClick={() => { setShowUsersModal(true); setMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-gray-700 active:bg-gray-700 transition-colors text-left"
+                >
+                  <span className="text-base">👥</span>
+                  <span>Participants ({roomState.users.length})</span>
                 </button>
                 <div className="h-px bg-gray-700" />
                 <button
@@ -278,8 +287,8 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
             </div>
           </div>
           
-          {/* Users List */}
-          <div className="bg-gray-800 border-t border-gray-700 p-2 sm:p-4 flex-shrink-0">
+          {/* Users List (Desktop only) */}
+          <div className="hidden lg:block bg-gray-800 border-t border-gray-700 p-2 sm:p-4 flex-shrink-0">
             <UsersList users={roomState.users} currentUsername={username} />
           </div>
         </div>
@@ -296,6 +305,31 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
           </div>
         )}
       </div>
+      {/* Users List Modal (Mobile only, triggered from hamburger menu) */}
+      {showUsersModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-gray-800 border border-gray-700 rounded-2xl p-5 w-full max-w-sm shadow-2xl relative animate-scale-up">
+            <button
+              onClick={() => setShowUsersModal(false)}
+              className="absolute top-3 right-3 text-gray-400 hover:text-white transition-colors"
+              aria-label="Close modal"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+              </svg>
+            </button>
+            <div className="mt-2 text-left">
+              <UsersList users={roomState.users} currentUsername={username} />
+            </div>
+            <button
+              onClick={() => setShowUsersModal(false)}
+              className="mt-6 w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
