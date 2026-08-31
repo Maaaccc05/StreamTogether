@@ -59,14 +59,14 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
     setCoords(computeCoords())
   }, [computeCoords])
 
-  // Close on outside click, window resize, or scroll outside
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  // Close only when the user clicks/taps outside the picker; avoid closing on
+  // mobile keyboard scroll events because that can interrupt emoji selection.
   useEffect(() => {
     const handleDown = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) {
-        onClose()
-      }
-    }
-    const handleScroll = (e) => {
       if (ref.current && !ref.current.contains(e.target)) {
         onClose()
       }
@@ -75,13 +75,11 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
 
     document.addEventListener('mousedown', handleDown)
     document.addEventListener('touchstart', handleDown)
-    window.addEventListener('scroll', handleScroll, true)
     window.addEventListener('resize', handleResize)
 
     return () => {
       document.removeEventListener('mousedown', handleDown)
       document.removeEventListener('touchstart', handleDown)
-      window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', handleResize)
     }
   }, [onClose])
@@ -144,6 +142,9 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
           onKeyDown={handleKeyDown}
           placeholder="Custom / type here…"
           maxLength={10}
+          autoComplete="off"
+          spellCheck={false}
+          inputMode="text"
           className="
             w-full text-center text-xs sm:text-sm bg-gray-800/90 border border-gray-600
             rounded-xl px-2 py-1.5 outline-none
