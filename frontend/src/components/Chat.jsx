@@ -63,24 +63,25 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
     inputRef.current?.focus()
   }, [])
 
-  // Close only when the user clicks/taps outside the picker; avoid closing on
-  // mobile keyboard scroll events because that can interrupt emoji selection.
+  // Close only when the user taps/clicks outside the picker. On mobile, resize or
+  // keyboard events must not shut the picker down while the user is choosing an emoji.
   useEffect(() => {
     const handleDown = (e) => {
+      const isTriggerClick = e.target?.closest?.('[data-reaction-picker-trigger="true"]')
+      if (isTriggerClick) return
       if (ref.current && !ref.current.contains(e.target)) {
         onClose()
       }
     }
-    const handleResize = () => onClose()
 
     document.addEventListener('mousedown', handleDown)
     document.addEventListener('touchstart', handleDown)
-    window.addEventListener('resize', handleResize)
+    document.addEventListener('pointerdown', handleDown)
 
     return () => {
       document.removeEventListener('mousedown', handleDown)
       document.removeEventListener('touchstart', handleDown)
-      window.removeEventListener('resize', handleResize)
+      document.removeEventListener('pointerdown', handleDown)
     }
   }, [onClose])
 
@@ -329,6 +330,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
 
                         {/* React + (plus icon) */}
                         <button
+                          data-reaction-picker-trigger="true"
                           onClick={(e) => togglePicker(message.id, e, isOwn)}
                           aria-label="Add reaction"
                           aria-expanded={isPickerOpen}
