@@ -24,12 +24,10 @@ const truncate = (text, max = 80) =>
   text && text.length > max ? text.slice(0, max) + '…' : text
 
 /* ─── Emoji Picker (Portaled to prevent container clipping) ─────────── */
-const QUICK_REACTS = ['❤️', '😂', '😢', '👍']
+const QUICK_REACTS = ['❤️', '😂', '😢', '😭', '😒', '😛', '👍']
 
 const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
   const ref = useRef(null)
-  const inputRef = useRef(null)
-  const [inputVal, setInputVal] = useState('')
 
   // Compute smart coordinates based on trigger button and viewport
   const computeCoords = useCallback(() => {
@@ -59,12 +57,7 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
     setCoords(computeCoords())
   }, [computeCoords])
 
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
-
-  // Close only when the user taps/clicks outside the picker. On mobile, resize or
-  // keyboard events must not shut the picker down while the user is choosing an emoji.
+  // Close only when the user taps/clicks outside the picker.
   useEffect(() => {
     const handleDown = (e) => {
       const isTriggerClick = e.target?.closest?.('[data-reaction-picker-trigger="true"]')
@@ -85,21 +78,6 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
     }
   }, [onClose])
 
-  const handleChange = (e) => {
-    const val = e.target.value
-    setInputVal(val)
-    const emojiRegex = /\p{Extended_Pictographic}/gu
-    const matches = val.match(emojiRegex)
-    if (matches && matches.length > 0) {
-      onSelect(matches[0])
-      onClose()
-    }
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Escape') onClose()
-  }
-
   return (
     <div
       ref={ref}
@@ -116,7 +94,7 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
       className="flex flex-col gap-2 rounded-2xl p-2.5 border border-gray-600/60 animate-in fade-in zoom-in-95 duration-100"
     >
       {/* Quick Emojis Row */}
-      <div className="flex items-center justify-between gap-1">
+      <div className="grid grid-cols-7 gap-1.5">
         {QUICK_REACTS.map((emoji) => (
           <button
             key={emoji}
@@ -125,36 +103,12 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
               onSelect(emoji)
               onClose()
             }}
-            className="w-9 h-9 flex items-center justify-center text-xl rounded-xl hover:bg-gray-700/80 active:scale-90 transition-all duration-150"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center text-lg sm:text-xl rounded-xl hover:bg-gray-700/80 active:scale-90 transition-all duration-150"
             aria-label={`React with ${emoji}`}
           >
             {emoji}
           </button>
         ))}
-      </div>
-
-      {/* Divider / Custom Emoji Input */}
-      <div className="pt-2 border-t border-gray-700/60 flex flex-col gap-1">
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputVal}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Custom / type here…"
-          maxLength={10}
-          autoComplete="off"
-          spellCheck={false}
-          inputMode="text"
-          className="
-            w-full text-center text-xs sm:text-sm bg-gray-800/90 border border-gray-600
-            rounded-xl px-2 py-1.5 outline-none
-            focus:ring-2 focus:ring-purple-500 focus:border-transparent
-            placeholder-gray-500 text-white caret-purple-400
-            transition-all duration-150
-          "
-          aria-label="Type or paste any emoji"
-        />
       </div>
     </div>
   )
@@ -334,6 +288,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
                           onClick={(e) => togglePicker(message.id, e, isOwn)}
                           aria-label="Add reaction"
                           aria-expanded={isPickerOpen}
+                          title="React with emoji"
                           className={`
                             p-1.5 rounded-full
                             transition-all duration-150
@@ -344,7 +299,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
                                 : 'opacity-70 sm:opacity-0 scale-90 sm:pointer-events-none text-gray-400'}
                           `}
                         >
-                          <PlusIcon />
+                          <span className="text-sm sm:text-base">😊</span>
                         </button>
                       </div>
 
