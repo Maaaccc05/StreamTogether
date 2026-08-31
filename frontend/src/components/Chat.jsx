@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 /* ─── Icons ─────────────────────────────────────────────────────────── */
 const ReplyIcon = () => (
@@ -13,60 +14,146 @@ const CloseIcon = () => (
   </svg>
 )
 
-const EmojiIcon = () => (
+const PlusIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-    <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.536-4.464a.75.75 0 1 0-1.061-1.061 3.5 3.5 0 0 1-4.95 0 .75.75 0 0 0-1.06 1.06 5 5 0 0 0 7.07 0ZM9 8.5c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S7.448 7 8 7s1 .672 1 1.5Zm3 1.5c-.552 0-1-.672-1-1.5S11.448 7 12 7s1 .672 1 1.5-.448 1.5-1 1.5Z" clipRule="evenodd" />
+    <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
   </svg>
 )
-
-/* ─── Constants ──────────────────────────────────────────────────────── */
-const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '🎉', '👏']
 
 const truncate = (text, max = 80) =>
   text && text.length > max ? text.slice(0, max) + '…' : text
 
-/* ─── Emoji Picker Popup ─────────────────────────────────────────────── */
-const EmojiPicker = ({ onSelect, onClose, isOwn }) => {
-  const ref = useRef(null)
+/* ─── Emoji Picker (Portaled to prevent container clipping) ─────────── */
+const QUICK_REACTS = ['❤️', '😂', '😢', '👍']
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onClose()
+const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
+  const ref = useRef(null)
+  const inputRef = useRef(null)
+  const [inputVal, setInputVal] = useState('')
+
+  // Compute smart coordinates based on trigger button and viewport
+  const computeCoords = useCallback(() => {
+    if (!triggerRect) return { top: 0, left: 0 }
+    const pickerWidth = 190
+    const pickerHeight = 96
+    const margin = 6
+
+    // Vertical positioning: prefer above, flip below if not enough room
+    let top = triggerRect.top - pickerHeight - margin
+    if (top < 10) {
+      top = triggerRect.bottom + margin
     }
-    document.addEventListener('mousedown', handler)
-    document.addEventListener('touchstart', handler)
+
+    // Horizontal positioning: align with button side & clamp within viewport
+    let left = isOwn ? triggerRect.right - pickerWidth : triggerRect.left
+    const viewportWidth = window.innerWidth
+    const maxLeft = viewportWidth - pickerWidth - 10
+    left = Math.max(10, Math.min(left, maxLeft))
+
+    return { top, left }
+  }, [triggerRect, isOwn])
+
+  const [coords, setCoords] = useState(computeCoords)
+
+  useLayoutEffect(() => {
+    setCoords(computeCoords())
+  }, [computeCoords])
+
+  // Close on outside click, window resize, or scroll outside
+  useEffect(() => {
+    const handleDown = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        onClose()
+      }
+    }
+    const handleScroll = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        onClose()
+      }
+    }
+    const handleResize = () => onClose()
+
+    document.addEventListener('mousedown', handleDown)
+    document.addEventListener('touchstart', handleDown)
+    window.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('resize', handleResize)
+
     return () => {
-      document.removeEventListener('mousedown', handler)
-      document.removeEventListener('touchstart', handler)
+      document.removeEventListener('mousedown', handleDown)
+      document.removeEventListener('touchstart', handleDown)
+      window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('resize', handleResize)
     }
   }, [onClose])
+
+  const handleChange = (e) => {
+    const val = e.target.value
+    setInputVal(val)
+    const emojiRegex = /\p{Extended_Pictographic}/gu
+    const matches = val.match(emojiRegex)
+    if (matches && matches.length > 0) {
+      onSelect(matches[0])
+      onClose()
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') onClose()
+  }
 
   return (
     <div
       ref={ref}
-      className={`
-        emoji-picker absolute z-50 bottom-full mb-1.5
-        flex gap-1 p-1.5 rounded-2xl shadow-xl
-        bg-gray-800 border border-gray-600
-        ${isOwn ? 'right-0' : 'left-0'}
-      `}
-      style={{ whiteSpace: 'nowrap' }}
+      style={{
+        position: 'fixed',
+        top: `${coords.top}px`,
+        left: `${coords.left}px`,
+        width: '190px',
+        zIndex: 99999,
+        background: 'rgba(15,20,35,0.98)',
+        backdropFilter: 'blur(16px)',
+        boxShadow: '0 10px 35px rgba(0,0,0,0.7), 0 0 0 1px rgba(147,51,234,0.3)',
+      }}
+      className="flex flex-col gap-2 rounded-2xl p-2.5 border border-gray-600/60 animate-in fade-in zoom-in-95 duration-100"
     >
-      {QUICK_EMOJIS.map(emoji => (
-        <button
-          key={emoji}
-          onClick={() => { onSelect(emoji); onClose() }}
+      {/* Quick Emojis Row */}
+      <div className="flex items-center justify-between gap-1">
+        {QUICK_REACTS.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => {
+              onSelect(emoji)
+              onClose()
+            }}
+            className="w-9 h-9 flex items-center justify-center text-xl rounded-xl hover:bg-gray-700/80 active:scale-90 transition-all duration-150"
+            aria-label={`React with ${emoji}`}
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+
+      {/* Divider / Custom Emoji Input */}
+      <div className="pt-2 border-t border-gray-700/60 flex flex-col gap-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputVal}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Custom / type here…"
+          maxLength={10}
           className="
-            w-8 h-8 flex items-center justify-center
-            text-xl rounded-xl
-            hover:bg-gray-700 active:scale-90
-            transition-all duration-100
+            w-full text-center text-xs sm:text-sm bg-gray-800/90 border border-gray-600
+            rounded-xl px-2 py-1.5 outline-none
+            focus:ring-2 focus:ring-purple-500 focus:border-transparent
+            placeholder-gray-500 text-white caret-purple-400
+            transition-all duration-150
           "
-          aria-label={`React with ${emoji}`}
-        >
-          {emoji}
-        </button>
-      ))}
+          aria-label="Type or paste any emoji"
+        />
+      </div>
     </div>
   )
 }
@@ -112,7 +199,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [replyTo, setReplyTo] = useState(null)
   const [hoveredId, setHoveredId] = useState(null)
-  const [pickerOpenId, setPickerOpenId] = useState(null)
+  const [pickerState, setPickerState] = useState(null) // { messageId, rect, isOwn }
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const messageRefs = useRef({})
@@ -126,13 +213,6 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
   useEffect(() => {
     if (replyTo) inputRef.current?.focus()
   }, [replyTo])
-
-  // Close picker when hovering off
-  useEffect(() => {
-    if (hoveredId !== pickerOpenId && pickerOpenId !== null) {
-      // Don't close immediately — user might be moving mouse to picker
-    }
-  }, [hoveredId, pickerOpenId])
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -164,15 +244,26 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
     }
   }
 
-  const togglePicker = useCallback((msgId) => {
-    setPickerOpenId(prev => prev === msgId ? null : msgId)
+  const togglePicker = useCallback((msgId, e, isOwn) => {
+    if (!e || !e.currentTarget) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const cleanRect = {
+      top: rect.top,
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+    }
+    setPickerState(prev => {
+      if (prev?.messageId === msgId) return null
+      return { messageId: msgId, rect: cleanRect, isOwn }
+    })
   }, [])
 
-  const closePicker = useCallback(() => setPickerOpenId(null), [])
+  const closePicker = useCallback(() => setPickerState(null), [])
 
   const handleReact = (messageId, emoji) => {
     onReact?.(messageId, emoji)
-    setPickerOpenId(null)
+    setPickerState(null)
   }
 
   return (
@@ -194,7 +285,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
         ) : (
           messages.map((message) => {
             const isOwn = message.username === currentUsername
-            const isPickerOpen = pickerOpenId === message.id
+            const isPickerOpen = pickerState?.messageId === message.id
             const isHovered = hoveredId === message.id
 
             return (
@@ -203,7 +294,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
                 ref={(el) => { if (el) messageRefs.current[message.id] = el }}
                 className="group rounded-lg"
                 onMouseEnter={() => setHoveredId(message.id)}
-                onMouseLeave={() => { setHoveredId(null) }}
+                onMouseLeave={() => setHoveredId(null)}
               >
                 {/* ── System message ── */}
                 {message.type === 'system' ? (
@@ -212,54 +303,46 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
                   </div>
                 ) : (
                   <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
-                    {/* Row: action buttons + bubble */}
-                    <div className={`flex items-end gap-1.5 max-w-[92%] sm:max-w-[82%] ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
 
-                      {/* ── Action buttons group (reply + react) ── */}
-                      <div className={`flex flex-col gap-1 flex-shrink-0 relative ${isOwn ? 'items-end' : 'items-start'}`}>
+                    {/* Row: action buttons + bubble, vertically centred */}
+                    <div className={`flex items-center gap-1.5 max-w-[92%] sm:max-w-[82%] ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
 
-                        {/* Reply button */}
+                      {/* ── Action buttons (reply + react/+) ── */}
+                      <div className="flex flex-col items-center gap-1 flex-shrink-0 relative">
+
+                        {/* Reply */}
                         <button
                           onClick={() => handleReply(message)}
                           aria-label={`Reply to ${message.username}`}
                           className={`
-                            reply-btn p-1.5 rounded-full
-                            text-gray-400 hover:text-purple-300 hover:bg-gray-700
+                            p-1.5 rounded-full
+                            text-gray-400 hover:text-purple-300 hover:bg-gray-700/80
                             transition-all duration-150
-                            ${isHovered || isPickerOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1 pointer-events-none'}
+                            ${isHovered || isPickerOpen
+                              ? 'opacity-100 scale-100 pointer-events-auto'
+                              : 'opacity-70 sm:opacity-0 scale-90 sm:pointer-events-none'}
                           `}
                         >
                           <ReplyIcon />
                         </button>
 
-                        {/* React button + picker */}
-                        <div className="relative">
-                          <button
-                            onClick={() => togglePicker(message.id)}
-                            aria-label="Add reaction"
-                            aria-expanded={isPickerOpen}
-                            className={`
-                              react-btn p-1.5 rounded-full
-                              transition-all duration-150
-                              ${isPickerOpen
-                                ? 'opacity-100 bg-gray-700 text-purple-300'
-                                : isHovered
-                                  ? 'opacity-100 translate-y-0 text-gray-400 hover:text-yellow-300 hover:bg-gray-700'
-                                  : 'opacity-0 translate-y-1 pointer-events-none text-gray-400'}
-                            `}
-                          >
-                            <EmojiIcon />
-                          </button>
-
-                          {/* Emoji picker popup */}
-                          {isPickerOpen && (
-                            <EmojiPicker
-                              isOwn={isOwn}
-                              onSelect={(emoji) => handleReact(message.id, emoji)}
-                              onClose={closePicker}
-                            />
-                          )}
-                        </div>
+                        {/* React + (plus icon) */}
+                        <button
+                          onClick={(e) => togglePicker(message.id, e, isOwn)}
+                          aria-label="Add reaction"
+                          aria-expanded={isPickerOpen}
+                          className={`
+                            p-1.5 rounded-full
+                            transition-all duration-150
+                            ${isPickerOpen
+                              ? 'opacity-100 scale-100 bg-purple-600/40 text-purple-300 pointer-events-auto ring-1 ring-purple-400'
+                              : isHovered
+                                ? 'opacity-100 scale-100 text-gray-400 hover:text-yellow-300 hover:bg-gray-700/80 pointer-events-auto'
+                                : 'opacity-70 sm:opacity-0 scale-90 sm:pointer-events-none text-gray-400'}
+                          `}
+                        >
+                          <PlusIcon />
+                        </button>
                       </div>
 
                       {/* ── Message bubble ── */}
@@ -270,7 +353,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
                             : 'bg-gray-700 text-gray-100 rounded-bl-sm'
                         }`}
                       >
-                        {/* Sender name */}
+                        {/* Sender name (other users only) */}
                         {!isOwn && (
                           <div className="text-[11px] sm:text-xs font-semibold mb-0.5 text-purple-300 truncate">
                             {message.username}
@@ -297,13 +380,8 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
                           </button>
                         )}
 
-                        {/* Message text */}
+                        {/* Message text — no timestamp */}
                         <div className="break-words text-sm sm:text-base leading-snug">{message.message}</div>
-
-                        {/* Timestamp */}
-                        <div className={`text-[10px] mt-0.5 ${isOwn ? 'text-purple-200/70 text-right' : 'text-gray-400/80'}`}>
-                          {message.timestamp}
-                        </div>
                       </div>
                     </div>
 
@@ -326,9 +404,20 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* ── Global Portaled Emoji Picker (Prevents any clipping in responsive) ── */}
+      {pickerState && typeof document !== 'undefined' && createPortal(
+        <EmojiPicker
+          triggerRect={pickerState.rect}
+          isOwn={pickerState.isOwn}
+          onSelect={(emoji) => handleReact(pickerState.messageId, emoji)}
+          onClose={closePicker}
+        />,
+        document.body
+      )}
+
       {/* ── Reply Preview Bar ── */}
       {replyTo && (
-        <div className="mx-2 sm:mx-4 mb-1 flex items-start gap-2 bg-gray-700/80 border border-gray-600 rounded-xl px-3 py-2 text-xs animate-in">
+        <div className="mx-2 sm:mx-4 mb-1 flex items-start gap-2 bg-gray-700/80 border border-gray-600 rounded-xl px-3 py-2 text-xs">
           <div className="flex-1 min-w-0">
             <span className="text-purple-300 font-semibold block mb-0.5">
               ↩ Replying to {replyTo.username === currentUsername ? 'yourself' : replyTo.username}
