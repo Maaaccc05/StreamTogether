@@ -132,21 +132,34 @@ const VideoPlayer = ({
       {/* Video URL Input (Available for All Users) */}
       {
         <div className="mb-2 sm:mb-3">
-          <form onSubmit={handleSubmitUrl} className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <form onSubmit={handleSubmitUrl} className="flex items-center gap-2">
             <input
               type="url"
               value={youtubeUrl}
               onChange={(e) => setYoutubeUrl(e.target.value)}
               placeholder="Paste YouTube URL here..."
-              className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+              className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm transition-all"
               disabled={isLoading}
             />
             <button
               type="submit"
               disabled={isLoading || !youtubeUrl.trim()}
-              className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+              aria-label="Load video"
+              title={isLoading ? 'Loading…' : 'Load Video'}
+              className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
-              {isLoading ? 'Loading...' : 'Load Video'}
+              {isLoading ? (
+                /* Spinner */
+                <svg className="w-4 h-4 text-white animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              ) : (
+                /* Play / Load icon */
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-white">
+                  <path fillRule="evenodd" d="M2 10a8 8 0 1 1 16 0A8 8 0 0 1 2 10Zm6.39-2.908a.75.75 0 0 1 .766.027l3.5 2.25a.75.75 0 0 1 0 1.262l-3.5 2.25A.75.75 0 0 1 8 12.25v-4.5a.75.75 0 0 1 .39-.658Z" clipRule="evenodd" />
+                </svg>
+              )}
             </button>
           </form>
         </div>

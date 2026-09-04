@@ -155,6 +155,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
   const [inputMessage, setInputMessage] = useState('')
   const [replyTo, setReplyTo] = useState(null)
   const [hoveredId, setHoveredId] = useState(null)
+  const [tappedId, setTappedId] = useState(null) // mobile tap-to-show buttons
   const [pickerState, setPickerState] = useState(null) // { messageId, rect, isOwn }
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -169,6 +170,17 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
   useEffect(() => {
     if (replyTo) inputRef.current?.focus()
   }, [replyTo])
+
+  // Dismiss tapped buttons when touching outside a message bubble
+  useEffect(() => {
+    if (!tappedId) return
+    const handler = (e) => {
+      const insideBubble = e.target?.closest?.('[data-msg-bubble]')
+      if (!insideBubble) setTappedId(null)
+    }
+    document.addEventListener('touchstart', handler)
+    return () => document.removeEventListener('touchstart', handler)
+  }, [tappedId])
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -232,7 +244,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
       </div>
 
       {/* ── Messages ── */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-1 sm:space-y-2">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 sm:space-y-3">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 py-6 sm:py-8 px-2">
             <div className="text-3xl sm:text-4xl mb-2">👋</div>
@@ -244,13 +256,18 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
             const isPickerOpen = pickerState?.messageId === message.id
             const isHovered = hoveredId === message.id
 
+            const isTapped = tappedId === message.id
+            const showActions = isHovered || isPickerOpen || isTapped
+
             return (
               <div
                 key={message.id}
                 ref={(el) => { if (el) messageRefs.current[message.id] = el }}
-                className="group rounded-lg"
+                className="group"
                 onMouseEnter={() => setHoveredId(message.id)}
                 onMouseLeave={() => setHoveredId(null)}
+                data-msg-bubble
+                onTouchStart={() => setTappedId(prev => prev === message.id ? null : message.id)}
               >
                 {/* ── System message ── */}
                 {message.type === 'system' ? (
@@ -260,48 +277,8 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
                 ) : (
                   <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
 
-                    {/* Row: action buttons + bubble, vertically centred */}
-                    <div className={`flex items-center gap-1.5 max-w-[92%] sm:max-w-[82%] ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
-
-                      {/* ── Action buttons (reply + react/+) ── */}
-                      <div className="flex flex-col items-center gap-1 flex-shrink-0 relative">
-
-                        {/* Reply */}
-                        <button
-                          onClick={() => handleReply(message)}
-                          aria-label={`Reply to ${message.username}`}
-                          className={`
-                            p-1.5 rounded-full
-                            text-gray-400 hover:text-purple-300 hover:bg-gray-700/80
-                            transition-all duration-150
-                            ${isHovered || isPickerOpen
-                              ? 'opacity-100 scale-100 pointer-events-auto'
-                              : 'opacity-70 sm:opacity-0 scale-90 sm:pointer-events-none'}
-                          `}
-                        >
-                          <ReplyIcon />
-                        </button>
-
-                        {/* React + (plus icon) */}
-                        <button
-                          data-reaction-picker-trigger="true"
-                          onClick={(e) => togglePicker(message.id, e, isOwn)}
-                          aria-label="Add reaction"
-                          aria-expanded={isPickerOpen}
-                          title="React with emoji"
-                          className={`
-                            p-1.5 rounded-full
-                            transition-all duration-150
-                            ${isPickerOpen
-                              ? 'opacity-100 scale-100 bg-purple-600/40 text-purple-300 pointer-events-auto ring-1 ring-purple-400'
-                              : isHovered
-                                ? 'opacity-100 scale-100 text-gray-400 hover:text-yellow-300 hover:bg-gray-700/80 pointer-events-auto'
-                                : 'opacity-70 sm:opacity-0 scale-90 sm:pointer-events-none text-gray-400'}
-                          `}
-                        >
-                          <span className="text-sm sm:text-base">😊</span>
-                        </button>
-                      </div>
+                    {/* Bubble + overlaid action buttons */}
+                    <div className={`relative max-w-[82%] sm:max-w-[75%] ${isOwn ? 'self-end' : 'self-start'}`}>
 
                       {/* ── Message bubble ── */}
                       <div
@@ -338,13 +315,58 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
                           </button>
                         )}
 
-                        {/* Message text — no timestamp */}
+                        {/* Message text */}
                         <div className="break-words text-sm sm:text-base leading-snug">{message.message}</div>
+                      </div>
+
+                      {/* ── Action buttons — float outside bubble, don't affect layout ── */}
+                      <div
+                        className={`
+                          absolute top-1/2 -translate-y-1/2
+                          flex flex-col items-center gap-0.5
+                          ${isOwn ? '-left-9' : '-right-9'}
+                        `}
+                      >
+                        {/* Reply */}
+                        <button
+                          onClick={() => handleReply(message)}
+                          aria-label={`Reply to ${message.username}`}
+                          className={`
+                            p-1.5 rounded-full
+                            text-gray-400 hover:text-purple-300 hover:bg-gray-700/80
+                            transition-all duration-150
+                            ${showActions
+                              ? 'opacity-100 scale-100 pointer-events-auto'
+                              : 'opacity-0 scale-75 pointer-events-none'}
+                          `}
+                        >
+                          <ReplyIcon />
+                        </button>
+
+                        {/* React emoji */}
+                        <button
+                          data-reaction-picker-trigger="true"
+                          onClick={(e) => togglePicker(message.id, e, isOwn)}
+                          aria-label="Add reaction"
+                          aria-expanded={isPickerOpen}
+                          title="React with emoji"
+                          className={`
+                            p-1.5 rounded-full
+                            transition-all duration-150
+                            ${isPickerOpen
+                              ? 'opacity-100 scale-100 bg-purple-600/40 text-purple-300 pointer-events-auto ring-1 ring-purple-400'
+                              : showActions
+                                ? 'opacity-100 scale-100 text-gray-400 hover:text-yellow-300 hover:bg-gray-700/80 pointer-events-auto'
+                                : 'opacity-0 scale-75 pointer-events-none text-gray-400'}
+                          `}
+                        >
+                          <span className="text-sm">😊</span>
+                        </button>
                       </div>
                     </div>
 
-                    {/* ── Reaction pills (below bubble) ── */}
-                    <div className={`${isOwn ? 'pr-10 sm:pr-11' : 'pl-10 sm:pl-11'} max-w-[92%] sm:max-w-[82%] w-full`}>
+                    {/* ── Reaction pills (below bubble, aligned with it) ── */}
+                    <div className="max-w-[82%] sm:max-w-[75%] w-full">
                       <ReactionPills
                         reactions={message.reactions}
                         currentUsername={currentUsername}
@@ -393,23 +415,27 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
       )}
 
       {/* ── Message Input ── */}
-      <div className="p-2 sm:p-4 border-t border-gray-700 bg-gray-800 sm:bg-transparent flex-shrink-0">
-        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
+      <div className="p-2 sm:p-3 border-t border-gray-700 bg-gray-800 sm:bg-transparent flex-shrink-0">
+        <form onSubmit={handleSubmit} className="flex items-center gap-2">
           <input
             ref={inputRef}
             type="text"
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder={replyTo ? `Reply to ${replyTo.username}…` : 'Type a message…'}
-            className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm sm:text-base transition-all"
+            className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm transition-all"
             maxLength={500}
           />
           <button
             type="submit"
             disabled={!inputMessage.trim()}
-            className="w-full sm:w-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base"
+            aria-label="Send message"
+            className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-purple-500"
           >
-            {replyTo ? 'Reply' : 'Send'}
+            {/* Send / Reply arrow icon */}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-white">
+              <path d="M3.105 2.288a.75.75 0 0 0-.826.95l1.414 4.926A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.897 28.897 0 0 0 15.293-7.154.75.75 0 0 0 0-1.115A28.897 28.897 0 0 0 3.105 2.288Z" />
+            </svg>
           </button>
         </form>
         <div className="text-[10px] sm:text-xs text-gray-500 mt-1 sm:mt-2 text-center sm:text-left">

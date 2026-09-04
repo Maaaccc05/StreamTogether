@@ -25,6 +25,7 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
   const [lastSeenMessageId, setLastSeenMessageId] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
   const [showUsersModal, setShowUsersModal] = useState(false)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const menuRef = useRef(null)
 
   // Copy room code to clipboard
@@ -254,7 +255,7 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
                 </button>
                 <div className="h-px bg-gray-700" />
                 <button
-                  onClick={() => { setMenuOpen(false); onLeaveRoom() }}
+                  onClick={() => { setMenuOpen(false); setShowLeaveConfirm(true); }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-gray-700 active:bg-gray-700 transition-colors text-left"
                 >
                   <span className="text-base">🚪</span>
@@ -268,9 +269,9 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-col lg:flex-row flex-1 h-[calc(100vh-80px)]">
-        {/* Video Section */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex flex-col lg:flex-row overflow-hidden" style={{ height: 'calc(100dvh - 64px)' }}>
+        {/* Video Section — shrinks to content on mobile, grows on desktop */}
+        <div className="flex-shrink-0 lg:flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 min-h-0">
             {/* Error Boundary for VideoPlayer */}
             <div className="w-full h-full">
@@ -293,9 +294,9 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
           </div>
         </div>
 
-        {/* Chat Section */}
+        {/* Chat Section — fills ALL remaining space on mobile */}
         {showChat && (
-          <div className="w-full lg:w-80 bg-gray-800 border-t lg:border-t-0 lg:border-l border-gray-700 flex flex-col flex-shrink-0 h-80 lg:h-auto">
+          <div className="w-full lg:w-80 bg-gray-800 border-t-2 border-gray-700 lg:border-t-0 lg:border-l flex flex-col flex-1 min-h-0 lg:flex-none lg:h-full overflow-hidden">
             <Chat
               messages={messages}
               onSendMessage={(msg, replyTo) => sendMessage(msg, replyTo)}
@@ -325,8 +326,59 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
               onClick={() => setShowUsersModal(false)}
               className="mt-6 w-full py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition-colors"
             >
-              Close
+          Close
             </button>
+          </div>
+        </div>
+      )}
+      {/* ── Leave Room Confirmation Modal ── */}
+      {showLeaveConfirm && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}
+          onTouchStart={(e) => { if (e.target === e.currentTarget) setShowLeaveConfirm(false) }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowLeaveConfirm(false) }}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl p-6 flex flex-col items-center gap-4 shadow-2xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(17,24,39,0.98) 0%, rgba(30,20,50,0.98) 100%)',
+              border: '1px solid rgba(147,51,234,0.35)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(147,51,234,0.2)',
+            }}
+          >
+            {/* Icon */}
+            <div className="text-5xl select-none">🚪</div>
+
+            {/* Text */}
+            <div className="text-center">
+              <h2 className="text-white font-bold text-lg mb-1">Leave Room?</h2>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                Are you sure you want to leave? You can always rejoin with the room code.
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3 w-full mt-1">
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-300 transition-all duration-150 active:scale-95"
+                style={{ background: 'rgba(75,85,99,0.5)', border: '1px solid rgba(107,114,128,0.4)' }}
+              >
+                Stay
+              </button>
+              <button
+                onClick={() => { setShowLeaveConfirm(false); onLeaveRoom(); }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all duration-150 active:scale-95"
+                style={{
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  boxShadow: '0 4px 15px rgba(220,38,38,0.4)',
+                }}
+              >
+                Yes, Leave
+              </button>
+            </div>
           </div>
         </div>
       )}
