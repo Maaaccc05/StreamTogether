@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import useSocket from '../hooks/useSocket'
 import VideoPlayer from './VideoPlayer'
 import Chat from './Chat'
+import Queue from './Queue'
 import UsersList from './UsersList'
 
 const RoomPage = ({ roomId, username, onLeaveRoom }) => {
@@ -14,10 +15,16 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
     pauseVideo, 
     seekVideo, 
     sendMessage,
-    sendReaction
+    sendReaction,
+    addToQueue,
+    removeFromQueue,
+    playNextInQueue,
+    playQueueItem,
+    reorderQueue
   } = useSocket(roomId, username)
 
   const [showChat, setShowChat] = useState(true)
+  const [activeTab, setActiveTab] = useState('chat') // 'chat' | 'queue'
   const [connectionTimeout, setConnectionTimeout] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -75,18 +82,18 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
     }
   }, [])
 
-  // Track unread messages when chat is hidden
+  // Track unread messages when chat is hidden OR user is on Queue tab
   useEffect(() => {
-    if (!showChat && messages.length > 0) {
+    const chatNotVisible = !showChat || activeTab !== 'chat'
+    if (chatNotVisible && messages.length > 0) {
       const latestMessage = messages[messages.length - 1]
-      // Only count user messages and system messages (not initial load)
       if (latestMessage.id > lastSeenMessageId && 
           (latestMessage.type === 'user' || latestMessage.type === 'system') &&
-          latestMessage.username !== username) { // Don't count own messages
+          latestMessage.username !== username) {
         setUnreadCount(prev => prev + 1)
       }
     }
-  }, [messages, showChat, lastSeenMessageId, username])
+  }, [messages, showChat, activeTab, lastSeenMessageId, username])
 
   // Reset unread count when chat becomes visible
   useEffect(() => {
@@ -284,6 +291,7 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
                 onPlay={playVideo}
                 onPause={pauseVideo}
                 onSeek={seekVideo}
+                onVideoEnd={playNextInQueue}
               />
             </div>
           </div>
@@ -294,15 +302,64 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
           </div>
         </div>
 
-        {/* Chat Section — fills ALL remaining space on mobile */}
+        {/* Chat/Queue Panel — fills ALL remaining space on mobile */}
         {showChat && (
           <div className="w-full lg:w-80 bg-gray-800 border-t-2 border-gray-700 lg:border-t-0 lg:border-l flex flex-col flex-1 min-h-0 lg:flex-none lg:h-full overflow-hidden">
-            <Chat
-              messages={messages}
-              onSendMessage={(msg, replyTo) => sendMessage(msg, replyTo)}
-              onReact={sendReaction}
-              currentUsername={username}
-            />
+
+            {/* Tab Switcher */}
+            <div className="flex flex-shrink-0 border-b border-gray-700">
+              <button
+                onClick={() => { setActiveTab('chat'); setUnreadCount(0) }}
+                className={`flex-1 py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-150 ${
+                  activeTab === 'chat'
+                    ? 'text-white border-b-2 border-purple-500 bg-gray-700/40'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/20'
+                }`}
+              >
+                💬 Chat
+                {unreadCount > 0 && activeTab !== 'chat' && (
+                  <span className="bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('queue')}
+                className={`flex-1 py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-150 ${
+                  activeTab === 'queue'
+                    ? 'text-white border-b-2 border-purple-500 bg-gray-700/40'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/20'
+                }`}
+              >
+                📋 Queue
+                {roomState.queue?.length > 0 && (
+                  <span className="bg-gray-600 text-gray-200 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    {roomState.queue.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Tab Panels */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {activeTab === 'chat' ? (
+                <Chat
+                  messages={messages}
+                  onSendMessage={(msg, replyTo) => sendMessage(msg, replyTo)}
+                  onReact={sendReaction}
+                  currentUsername={username}
+                />
+              ) : (
+                <Queue
+                  queue={roomState.queue || []}
+                  onAdd={addToQueue}
+                  onRemove={removeFromQueue}
+                  onPlayItem={playQueueItem}
+                  onReorder={reorderQueue}
+                  currentUsername={username}
+                />
+              )}
+            </div>
           </div>
         )}
       </div>

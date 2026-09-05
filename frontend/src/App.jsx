@@ -9,62 +9,40 @@ function App() {
 
   // Load saved room data on app start
   useEffect(() => {
-    console.log('App starting, checking for saved room data...')
     const savedRoomData = localStorage.getItem('streamTogether_roomData')
-    console.log('Saved room data:', savedRoomData)
-    
     if (savedRoomData) {
       try {
         const parsedData = JSON.parse(savedRoomData)
-        console.log('Parsed room data:', parsedData)
-        
-        // Validate the data has required fields
         if (parsedData.roomId && parsedData.username) {
           setRoomData(parsedData)
           setCurrentPage('room')
-          console.log('Restored session for room:', parsedData.roomId)
         } else {
-          console.log('Invalid room data, clearing localStorage')
           localStorage.removeItem('streamTogether_roomData')
         }
-      } catch (error) {
-        console.error('Error parsing saved room data:', error)
+      } catch {
         localStorage.removeItem('streamTogether_roomData')
       }
-    } else {
-      console.log('No saved room data found')
     }
-    
     setIsLoading(false)
   }, [])
 
   const joinRoom = (roomId, username) => {
-    console.log('Joining room:', roomId, 'as user:', username)
     const newRoomData = { roomId, username }
     setRoomData(newRoomData)
     setCurrentPage('room')
-    
-    // Save to localStorage for persistence
     try {
       localStorage.setItem('streamTogether_roomData', JSON.stringify(newRoomData))
-      console.log('Room data saved to localStorage')
-    } catch (error) {
-      console.error('Error saving room data to localStorage:', error)
-    }
+    } catch { /* storage unavailable */ }
   }
 
   const leaveRoom = () => {
-    console.log('Leaving room')
     setRoomData(null)
     setCurrentPage('home')
     
     // Clear saved room data
     try {
       localStorage.removeItem('streamTogether_roomData')
-      console.log('Room data cleared from localStorage')
-    } catch (error) {
-      console.error('Error clearing room data from localStorage:', error)
-    }
+    } catch { /* storage unavailable */ }
   }
 
   // Show loading screen while checking for saved session

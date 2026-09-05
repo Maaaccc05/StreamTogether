@@ -91,51 +91,103 @@ app.get('/api/status', (req, res) => {
 // Store room data
 const rooms = new Map()
 
+// ── Security helpers ─────────────────────────────────────────────────
+const IS_PROD = process.env.NODE_ENV === 'production'
+const log = (...args) => { if (!IS_PROD) console.log(...args) }
+
+// Sanitize a string: trim, limit length, strip dangerous chars
+const sanitize = (str, maxLen = 200) =>
+  typeof str === 'string' ? str.trim().slice(0, maxLen).replace(/[<>"'`]/g, '') : ''
+
+// Validate YouTube video ID (exactly 11 alphanumeric/-/_ chars)
+const isValidVideoId = (id) => typeof id === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(id)
+
+// Validate roomId (4–10 uppercase alphanumeric chars)
+const isValidRoomId = (id) => typeof id === 'string' && /^[A-Z0-9]{4,10}$/.test(id)
+
+// Per-socket rate limiter: max `limit` calls per `windowMs` milliseconds
+const makeRateLimiter = (limit, windowMs) => {
+  const counts = new Map()
+  return (socketId) => {
+    const now = Date.now()
+    const entry = counts.get(socketId) || { count: 0, start: now }
+    if (now - entry.start > windowMs) {
+      entry.count = 1; entry.start = now
+    } else {
+      entry.count++
+    }
+    counts.set(socketId, entry)
+    return entry.count <= limit
+  }
+}
+
+// Rate limiters for high-frequency events
+const chatRateLimit   = makeRateLimiter(5, 3000)   // 5 messages per 3 seconds
+const videoRateLimit  = makeRateLimiter(10, 1000)  // 10 play/pause/seek per second
+const queueRateLimit  = makeRateLimiter(10, 5000)  // 10 queue ops per 5 seconds
+
+// Max limits
+const MAX_ROOMS       = 500   // max simultaneous rooms on server
+const MAX_QUEUE_SIZE  = 50    // max videos in a room queue
+const MAX_CHAT_HIST   = 100   // max stored chat messages per room
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id)
+  log('User connected:', socket.id)
 
-  // Join a room
+  // ── Join a room ───────────────────────────────────────────────────
   socket.on('join-room', ({ roomId, username }) => {
+    // FIX 3: Validate roomId format — reject null / oversized / malformed IDs
+    if (!isValidRoomId(roomId)) {
+      socket.emit('error', 'Invalid room ID')
+      return
+    }
+
+    // FIX 1: Sanitize and length-limit username
+    const cleanUsername = sanitize(String(username || ''), 30)
+    if (cleanUsername.length < 1) {
+      socket.emit('error', 'Invalid username')
+      return
+    }
+
+    // FIX 6: Cap total number of rooms to prevent memory exhaustion
+    if (!rooms.has(roomId) && rooms.size >= MAX_ROOMS) {
+      socket.emit('error', 'Server is full, try again later')
+      return
+    }
+
     socket.join(roomId)
-    socket.username = username
+    socket.username = cleanUsername
     socket.roomId = roomId
 
-    console.log(`User ${username} attempting to join room ${roomId}`)
-    console.log(`Room exists:`, rooms.has(roomId))
+    log(`User ${cleanUsername} joining room ${roomId}`)
 
     // Initialize room if it doesn't exist
     if (!rooms.has(roomId)) {
-      console.log(`Creating new room: ${roomId}`)
       rooms.set(roomId, {
         users: new Map(),
         currentVideo: null,
         isPlaying: false,
         currentTime: 0,
         host: socket.id,
-        chatHistory: [] // Store chat messages
+        chatHistory: [],
+        queue: []
       })
-    } else {
-      console.log(`Room ${roomId} already exists with ${rooms.get(roomId).chatHistory.length} messages in history`)
     }
 
     const room = rooms.get(roomId)
-    
-    // Add a test message if this is the first user and room is new
+
+    // Welcome message for brand-new empty rooms
     if (room.users.size === 0 && room.chatHistory.length === 0) {
-      const welcomeMessage = {
-        id: Date.now() - 1000, // Make it earlier than join message
+      room.chatHistory.push({
+        id: Date.now() - 1000,
         type: 'system',
         message: `Welcome to room ${roomId}! 🎬`,
         timestamp: new Date().toLocaleTimeString()
-      }
-      room.chatHistory.push(welcomeMessage)
-      console.log('Added welcome message to new room')
+      })
     }
-    
-    room.users.set(socket.id, { username, id: socket.id })
 
-    console.log(`Current chat history for room ${roomId}:`, room.chatHistory.length, 'messages')
+    room.users.set(socket.id, { username: cleanUsername, id: socket.id })
 
     // Send current room state to the new user
     socket.emit('room-state', {
@@ -144,123 +196,133 @@ io.on('connection', (socket) => {
       currentTime: room.currentTime,
       users: Array.from(room.users.values()),
       isHost: room.host === socket.id,
-      chatHistory: room.chatHistory // Send chat history
+      chatHistory: room.chatHistory,
+      queue: room.queue || []
     })
-
-    console.log(`Sent room state to ${username} with ${room.chatHistory.length} chat messages`)
 
     // Notify others about the new user
     const joinMessage = {
       id: Date.now(),
       type: 'system',
-      message: `${username} joined the room`,
+      message: `${cleanUsername} joined the room`,
       timestamp: new Date().toLocaleTimeString()
     }
-    
-    // Store join message in chat history
     room.chatHistory.push(joinMessage)
-    
-    socket.to(roomId).emit('user-joined', { 
-      username, 
+    socket.to(roomId).emit('user-joined', {
+      username: cleanUsername,
       userId: socket.id,
       users: Array.from(room.users.values())
     })
-    
-    // Send join message to other users (not the joining user since they get full history)
     socket.to(roomId).emit('chat-message', joinMessage)
 
-    console.log(`${username} joined room ${roomId}`)
+    log(`${cleanUsername} joined room ${roomId}`)
   })
 
-  // Handle video changes (allow any user to change video)
+  // ── Video change ─────────────────────────────────────────────────
   socket.on('video-change', ({ roomId, videoId, videoTitle }) => {
     const room = rooms.get(roomId)
-    if (room && room.users.has(socket.id)) {
-      room.currentVideo = { videoId, videoTitle }
-      room.currentTime = 0
-      room.isPlaying = false
-      
-      // Get username for the notification
-      const user = room.users.get(socket.id)
-      
-      // Notify all users in the room about the video change (including the user who loaded it)
-      io.to(roomId).emit('video-changed', { 
-        videoId, 
-        videoTitle,
-        currentTime: 0,
-        isPlaying: false,
-        changedBy: user.username
-      })
-      
-      // Add system message about video change
-      const videoChangeMessage = {
-        id: Date.now(),
-        type: 'system',
-        message: `${user.username} loaded: ${videoTitle}`,
-        timestamp: new Date().toLocaleTimeString()
-      }
-      
-      room.chatHistory.push(videoChangeMessage)
-      io.to(roomId).emit('chat-message', videoChangeMessage)
+    if (!room || !room.users.has(socket.id)) return
+
+    // FIX 5: Validate videoId must be exactly 11 YouTube chars
+    if (!isValidVideoId(videoId)) return
+    const cleanTitle = sanitize(String(videoTitle || 'YouTube Video'), 150)
+
+    const user = room.users.get(socket.id)
+    room.currentVideo = { videoId, videoTitle: cleanTitle }
+    room.currentTime = 0
+    room.isPlaying = false
+
+    io.to(roomId).emit('video-changed', {
+      videoId,
+      videoTitle: cleanTitle,
+      currentTime: 0,
+      isPlaying: false,
+      changedBy: user.username
+    })
+
+    const videoChangeMessage = {
+      id: Date.now(),
+      type: 'system',
+      message: `${user.username} loaded: ${cleanTitle}`,
+      timestamp: new Date().toLocaleTimeString()
     }
+    room.chatHistory.push(videoChangeMessage)
+    io.to(roomId).emit('chat-message', videoChangeMessage)
   })
 
-  // Handle play/pause events
+  // ── Play / Pause / Seek (rate-limited) ──────────────────────────
   socket.on('video-play', ({ roomId, currentTime }) => {
+    // FIX 2: Rate-limit play/pause/seek — 10 per second max
+    if (!videoRateLimit(socket.id)) return
     const room = rooms.get(roomId)
-    if (room) {
+    if (room && room.users.has(socket.id)) {
+      const t = Math.max(0, Number(currentTime) || 0)
       room.isPlaying = true
-      room.currentTime = currentTime
-      socket.to(roomId).emit('video-play', { currentTime })
+      room.currentTime = t
+      socket.to(roomId).emit('video-play', { currentTime: t })
     }
   })
 
   socket.on('video-pause', ({ roomId, currentTime }) => {
-    const room = rooms.get(roomId)
-    if (room) {
-      room.isPlaying = false
-      room.currentTime = currentTime
-      socket.to(roomId).emit('video-pause', { currentTime })
-    }
-  })
-
-  // Handle seek events
-  socket.on('video-seek', ({ roomId, currentTime }) => {
-    const room = rooms.get(roomId)
-    if (room) {
-      room.currentTime = currentTime
-      socket.to(roomId).emit('video-seek', { currentTime })
-    }
-  })
-
-  // Handle chat messages
-  socket.on('chat-message', ({ roomId, message, replyTo }) => {
+    if (!videoRateLimit(socket.id)) return
     const room = rooms.get(roomId)
     if (room && room.users.has(socket.id)) {
-      const user = room.users.get(socket.id)
-      const chatMessage = {
-        id: Date.now(),
-        username: user.username,
-        message,
-        timestamp: new Date().toLocaleTimeString(),
-        type: 'user',
-        ...(replyTo ? { replyTo } : {})
-      }
-      
-      // Store message in room's chat history
-      room.chatHistory.push(chatMessage)
-      
-      // Keep only last 100 messages to prevent memory issues
-      if (room.chatHistory.length > 100) {
-        room.chatHistory = room.chatHistory.slice(-100)
-      }
-      
-      // Send to all users in the room
-      io.to(roomId).emit('chat-message', chatMessage)
-      
-      console.log(`Chat message stored for room ${roomId}:`, chatMessage.message)
-      console.log(`Total messages in room ${roomId}:`, room.chatHistory.length)
+      const t = Math.max(0, Number(currentTime) || 0)
+      room.isPlaying = false
+      room.currentTime = t
+      socket.to(roomId).emit('video-pause', { currentTime: t })
     }
+  })
+
+  socket.on('video-seek', ({ roomId, currentTime }) => {
+    if (!videoRateLimit(socket.id)) return
+    const room = rooms.get(roomId)
+    if (room && room.users.has(socket.id)) {
+      const t = Math.max(0, Number(currentTime) || 0)
+      room.currentTime = t
+      socket.to(roomId).emit('video-seek', { currentTime: t })
+    }
+  })
+
+  // ── Chat messages (rate-limited + sanitized) ─────────────────────
+  socket.on('chat-message', ({ roomId, message, replyTo }) => {
+    // FIX 2: Rate-limit — max 5 messages per 3 seconds
+    if (!chatRateLimit(socket.id)) return
+
+    const room = rooms.get(roomId)
+    if (!room || !room.users.has(socket.id)) return
+
+    // FIX 1: Sanitize and length-limit the message on the server
+    const cleanMessage = sanitize(String(message || ''), 500)
+    if (cleanMessage.length === 0) return
+
+    // FIX 4: Sanitize replyTo — only allow known safe fields
+    let safeReplyTo = null
+    if (replyTo && typeof replyTo === 'object') {
+      safeReplyTo = {
+        id: Number(replyTo.id) || 0,
+        username: sanitize(String(replyTo.username || ''), 30),
+        message: sanitize(String(replyTo.message || ''), 200)
+      }
+    }
+
+    const user = room.users.get(socket.id)
+    const chatMessage = {
+      id: Date.now(),
+      username: user.username,
+      message: cleanMessage,
+      timestamp: new Date().toLocaleTimeString(),
+      type: 'user',
+      ...(safeReplyTo ? { replyTo: safeReplyTo } : {})
+    }
+
+    room.chatHistory.push(chatMessage)
+    // Keep only last MAX_CHAT_HIST messages
+    if (room.chatHistory.length > MAX_CHAT_HIST) {
+      room.chatHistory = room.chatHistory.slice(-MAX_CHAT_HIST)
+    }
+
+    io.to(roomId).emit('chat-message', chatMessage)
   })
 
   // Handle emoji reactions
@@ -291,18 +353,130 @@ io.on('connection', (socket) => {
     }
   })
 
-  // Handle explicit chat history requests
+  // ── Chat history request ─────────────────────────────────────────
   socket.on('get-chat-history', ({ roomId }) => {
     const room = rooms.get(roomId)
     if (room && room.users.has(socket.id)) {
-      console.log(`Sending chat history to ${socket.id}: ${room.chatHistory.length} messages`)
       socket.emit('chat-history', { chatHistory: room.chatHistory })
     }
   })
 
-  // Handle disconnection
+  // ── Queue Events ─────────────────────────────────────────────
+
+  // ── Queue: add ───────────────────────────────────────────────────
+  socket.on('queue-add', ({ roomId, videoId, title, thumbnail }) => {
+    // FIX 2: Rate-limit queue operations
+    if (!queueRateLimit(socket.id)) return
+
+    const room = rooms.get(roomId)
+    if (!room || !room.users.has(socket.id)) return
+
+    // FIX 5: Validate videoId
+    if (!isValidVideoId(videoId)) return
+
+    // FIX 7: Cap queue size
+    if (room.queue.length >= MAX_QUEUE_SIZE) {
+      socket.emit('error', `Queue is full (max ${MAX_QUEUE_SIZE} videos)`)
+      return
+    }
+
+    const cleanTitle = sanitize(String(title || 'YouTube Video'), 150)
+    const user = room.users.get(socket.id)
+    const item = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      videoId,
+      title: cleanTitle,
+      // Always generate thumbnail from videoId — never trust client-supplied URL
+      thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+      addedBy: user.username
+    }
+    room.queue.push(item)
+    io.to(roomId).emit('queue-updated', { queue: room.queue })
+    log(`Queue add in room ${roomId}: ${cleanTitle}`)
+  })
+
+  // Remove a video from the queue
+  socket.on('queue-remove', ({ roomId, itemId }) => {
+    const room = rooms.get(roomId)
+    if (room && room.users.has(socket.id)) {
+      room.queue = room.queue.filter(item => item.id !== itemId)
+      io.to(roomId).emit('queue-updated', { queue: room.queue })
+    }
+  })
+
+  // Play a specific item from the queue immediately (remove from queue, set as current)
+  socket.on('queue-play-item', ({ roomId, itemId }) => {
+    const room = rooms.get(roomId)
+    if (room && room.users.has(socket.id)) {
+      const idx = room.queue.findIndex(item => item.id === itemId)
+      if (idx !== -1) {
+        const [item] = room.queue.splice(idx, 1)
+        room.currentVideo = { videoId: item.videoId, videoTitle: item.title }
+        room.currentTime = 0
+        room.isPlaying = true
+        io.to(roomId).emit('video-changed', {
+          videoId: item.videoId,
+          videoTitle: item.title,
+          currentTime: 0,
+          isPlaying: true
+        })
+        io.to(roomId).emit('queue-updated', { queue: room.queue })
+        const user = room.users.get(socket.id)
+        const msg = {
+          id: Date.now(), type: 'system',
+          message: `${user.username} played: ${item.title}`,
+          timestamp: new Date().toLocaleTimeString()
+        }
+        room.chatHistory.push(msg)
+        io.to(roomId).emit('chat-message', msg)
+      }
+    }
+  })
+
+  // Auto-advance: video ended, play next in queue
+  socket.on('queue-play-next', ({ roomId }) => {
+    const room = rooms.get(roomId)
+    if (room && room.users.has(socket.id)) {
+      if (room.queue.length === 0) return
+      const next = room.queue.shift()
+      room.currentVideo = { videoId: next.videoId, videoTitle: next.title }
+      room.currentTime = 0
+      room.isPlaying = true
+      io.to(roomId).emit('video-changed', {
+        videoId: next.videoId,
+        videoTitle: next.title,
+        currentTime: 0,
+        isPlaying: true
+      })
+      io.to(roomId).emit('queue-updated', { queue: room.queue })
+      const msg = {
+        id: Date.now(), type: 'system',
+        message: `▶ Now playing: ${next.title}`,
+        timestamp: new Date().toLocaleTimeString()
+      }
+      room.chatHistory.push(msg)
+      io.to(roomId).emit('chat-message', msg)
+      log(`Queue auto-advance in room ${roomId}: ${next.title}`)
+    }
+  })
+
+  // Move item up or down in the queue
+  socket.on('queue-reorder', ({ roomId, itemId, direction }) => {
+    const room = rooms.get(roomId)
+    if (room && room.users.has(socket.id)) {
+      const idx = room.queue.findIndex(item => item.id === itemId)
+      if (idx === -1) return
+      const newIdx = direction === 'up' ? idx - 1 : idx + 1
+      if (newIdx < 0 || newIdx >= room.queue.length) return
+      // Swap
+      ;[room.queue[idx], room.queue[newIdx]] = [room.queue[newIdx], room.queue[idx]]
+      io.to(roomId).emit('queue-updated', { queue: room.queue })
+    }
+  })
+
+  // ── Disconnect ───────────────────────────────────────────────────
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id, 'from room:', socket.roomId)
+    log('User disconnected:', socket.id, 'from room:', socket.roomId)
     
     if (socket.roomId && rooms.has(socket.roomId)) {
       const room = rooms.get(socket.roomId)

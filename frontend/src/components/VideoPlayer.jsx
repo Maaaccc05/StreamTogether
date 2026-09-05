@@ -9,7 +9,8 @@ const VideoPlayer = ({
   onVideoChange, 
   onPlay, 
   onPause, 
-  onSeek 
+  onSeek,
+  onVideoEnd
 }) => {
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -68,6 +69,9 @@ const VideoPlayer = ({
       onPlay(currentPlayerTime)
     } else if (event.data === YouTube.PlayerState.PAUSED) {
       onPause(currentPlayerTime)
+    } else if (event.data === YouTube.PlayerState.ENDED) {
+      // Notify parent so it can advance the queue
+      onVideoEnd?.()
     }
   }
 

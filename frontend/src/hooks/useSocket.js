@@ -9,7 +9,8 @@ const useSocket = (roomId, username) => {
     isPlaying: false,
     currentTime: 0,
     users: [],
-    isHost: false
+    isHost: false,
+    queue: []
   });
   const [messages, setMessages] = useState([]);
   const [chatLoaded, setChatLoaded] = useState(false);
@@ -162,6 +163,11 @@ const useSocket = (roomId, username) => {
       }
     })
 
+    // Queue sync
+    newSocket.on('queue-updated', ({ queue }) => {
+      setRoomState(prev => ({ ...prev, queue }))
+    })
+
     return () => {
       console.log('Cleaning up socket connection')
       newSocket.removeAllListeners()
@@ -206,6 +212,30 @@ const useSocket = (roomId, username) => {
     }
   };
 
+  // Queue methods
+  const addToQueue = (videoId, title) => {
+    if (socket) {
+      const thumbnail = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+      socket.emit('queue-add', { roomId, videoId, title, thumbnail })
+    }
+  }
+
+  const removeFromQueue = (itemId) => {
+    if (socket) socket.emit('queue-remove', { roomId, itemId })
+  }
+
+  const playNextInQueue = () => {
+    if (socket) socket.emit('queue-play-next', { roomId })
+  }
+
+  const playQueueItem = (itemId) => {
+    if (socket) socket.emit('queue-play-item', { roomId, itemId })
+  }
+
+  const reorderQueue = (itemId, direction) => {
+    if (socket) socket.emit('queue-reorder', { roomId, itemId, direction })
+  }
+
   return {
     socket,
     isConnected,
@@ -216,7 +246,12 @@ const useSocket = (roomId, username) => {
     pauseVideo,
     seekVideo,
     sendMessage,
-    sendReaction
+    sendReaction,
+    addToQueue,
+    removeFromQueue,
+    playNextInQueue,
+    playQueueItem,
+    reorderQueue
   };
 };
 
