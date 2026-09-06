@@ -303,12 +303,6 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
       style={{ height: '100%', minHeight: 0 }}
     >
 
-      {/* ── Chat Header ── */}
-      <div className="px-3 py-2.5 border-b border-gray-700 flex justify-between items-center flex-shrink-0">
-        <h3 className="text-white font-semibold text-sm truncate">💬 Chat</h3>
-        <span className="ml-2 text-xs text-gray-400">({messages.length})</span>
-      </div>
-
       {/* ── Messages ── */}
       <div
         className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-1"

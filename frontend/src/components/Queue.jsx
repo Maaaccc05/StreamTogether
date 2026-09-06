@@ -66,13 +66,6 @@ const Queue = ({ queue = [], onAdd, onRemove, onPlayItem, onReorder, currentUser
   return (
     <div className="flex flex-col h-full bg-gray-900 sm:bg-transparent overflow-hidden">
 
-      {/* Header */}
-      <div className="p-3 sm:p-4 border-b border-gray-700 flex justify-between items-center flex-shrink-0">
-        <h3 className="text-white font-semibold text-sm sm:text-base">📋 Queue</h3>
-        <span className="ml-2 text-xs sm:text-sm text-gray-400">
-          {queue.length === 0 ? 'Empty' : `${queue.length} video${queue.length !== 1 ? 's' : ''}`}
-        </span>
-      </div>
 
       {/* Queue List */}
       <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2">
