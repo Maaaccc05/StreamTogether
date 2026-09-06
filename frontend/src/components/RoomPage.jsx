@@ -276,11 +276,13 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-col lg:flex-row overflow-hidden" style={{ height: 'calc(100dvh - 64px)' }}>
-        {/* Video Section — shrinks to content on mobile, grows on desktop */}
+      <div
+        className="flex flex-col lg:flex-row overflow-hidden"
+        style={{ height: 'calc(100dvh - 56px)', minHeight: 0 }}
+      >
+        {/* Video Section — shrinks to content on mobile, fixed aspect on desktop */}
         <div className="flex-shrink-0 lg:flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 min-h-0">
-            {/* Error Boundary for VideoPlayer */}
             <div className="w-full h-full">
               <VideoPlayer
                 currentVideo={roomState.currentVideo}
@@ -295,17 +297,19 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
               />
             </div>
           </div>
-          
+
           {/* Users List (Desktop only) */}
           <div className="hidden lg:block bg-gray-800 border-t border-gray-700 p-2 sm:p-4 flex-shrink-0">
             <UsersList users={roomState.users} currentUsername={username} />
           </div>
         </div>
 
-        {/* Chat/Queue Panel — fills ALL remaining space on mobile */}
+        {/* Chat/Queue Panel */}
         {showChat && (
-          <div className="w-full lg:w-80 bg-gray-800 border-t-2 border-gray-700 lg:border-t-0 lg:border-l flex flex-col flex-1 min-h-0 lg:flex-none lg:h-full overflow-hidden">
-
+          <div
+            className="w-full lg:w-80 bg-gray-800 border-t-2 border-gray-700 lg:border-t-0 lg:border-l flex flex-col overflow-hidden"
+            style={{ flex: '1 1 0', minHeight: 0 }}
+          >
             {/* Tab Switcher */}
             <div className="flex flex-shrink-0 border-b border-gray-700">
               <button
@@ -340,8 +344,8 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
               </button>
             </div>
 
-            {/* Tab Panels */}
-            <div className="flex-1 min-h-0 overflow-hidden">
+            {/* Tab Panels — must fill remaining height exactly */}
+            <div className="flex-1 min-h-0 overflow-hidden" style={{ height: 0 }}>
               {activeTab === 'chat' ? (
                 <Chat
                   messages={messages}

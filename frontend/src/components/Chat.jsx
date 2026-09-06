@@ -2,21 +2,15 @@ import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react
 import { createPortal } from 'react-dom'
 
 /* ─── Icons ─────────────────────────────────────────────────────────── */
-const ReplyIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-    <path fillRule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.061.025Z" clipRule="evenodd" />
-  </svg>
-)
-
 const CloseIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
     <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
   </svg>
 )
 
-const PlusIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-    <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
+const SwipeReplyIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+    <path fillRule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.061.025Z" clipRule="evenodd" />
   </svg>
 )
 
@@ -24,25 +18,20 @@ const truncate = (text, max = 80) =>
   text && text.length > max ? text.slice(0, max) + '…' : text
 
 /* ─── Emoji Picker (Portaled to prevent container clipping) ─────────── */
-const QUICK_REACTS = ['❤️', '😂', '😢', '😭', '😒', '😛', '👍']
+const QUICK_REACTS = ['❤️', '😂', '😦', '😢', '😭', '😒', '😛']
 
 const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
   const ref = useRef(null)
 
-  // Compute smart coordinates based on trigger button and viewport
   const computeCoords = useCallback(() => {
     if (!triggerRect) return { top: 0, left: 0 }
     const pickerWidth = 190
     const pickerHeight = 96
     const margin = 6
 
-    // Vertical positioning: prefer above, flip below if not enough room
     let top = triggerRect.top - pickerHeight - margin
-    if (top < 10) {
-      top = triggerRect.bottom + margin
-    }
+    if (top < 10) top = triggerRect.bottom + margin
 
-    // Horizontal positioning: align with button side & clamp within viewport
     let left = isOwn ? triggerRect.right - pickerWidth : triggerRect.left
     const viewportWidth = window.innerWidth
     const maxLeft = viewportWidth - pickerWidth - 10
@@ -57,20 +46,15 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
     setCoords(computeCoords())
   }, [computeCoords])
 
-  // Close only when the user taps/clicks outside the picker.
   useEffect(() => {
     const handleDown = (e) => {
       const isTriggerClick = e.target?.closest?.('[data-reaction-picker-trigger="true"]')
       if (isTriggerClick) return
-      if (ref.current && !ref.current.contains(e.target)) {
-        onClose()
-      }
+      if (ref.current && !ref.current.contains(e.target)) onClose()
     }
-
     document.addEventListener('mousedown', handleDown)
     document.addEventListener('touchstart', handleDown)
     document.addEventListener('pointerdown', handleDown)
-
     return () => {
       document.removeEventListener('mousedown', handleDown)
       document.removeEventListener('touchstart', handleDown)
@@ -91,19 +75,15 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
         backdropFilter: 'blur(16px)',
         boxShadow: '0 10px 35px rgba(0,0,0,0.7), 0 0 0 1px rgba(147,51,234,0.3)',
       }}
-      className="flex flex-col gap-2 rounded-2xl p-2.5 border border-gray-600/60 animate-in fade-in zoom-in-95 duration-100"
+      className="flex flex-col gap-2 rounded-2xl p-2.5 border border-gray-600/60"
     >
-      {/* Quick Emojis Row */}
       <div className="grid grid-cols-7 gap-1.5">
         {QUICK_REACTS.map((emoji) => (
           <button
             key={emoji}
             type="button"
-            onClick={() => {
-              onSelect(emoji)
-              onClose()
-            }}
-            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center text-lg sm:text-xl rounded-xl hover:bg-gray-700/80 active:scale-90 transition-all duration-150"
+            onClick={() => { onSelect(emoji); onClose() }}
+            className="w-8 h-8 flex items-center justify-center text-lg rounded-xl hover:bg-gray-700/80 active:scale-90 transition-all duration-150"
             aria-label={`React with ${emoji}`}
           >
             {emoji}
@@ -117,7 +97,6 @@ const EmojiPicker = ({ triggerRect, onSelect, onClose, isOwn }) => {
 /* ─── Reaction Pills ─────────────────────────────────────────────────── */
 const ReactionPills = ({ reactions, currentUsername, messageId, onReact, isOwn }) => {
   if (!reactions || Object.keys(reactions).length === 0) return null
-
   return (
     <div className={`flex flex-wrap gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
       {Object.entries(reactions).map(([emoji, users]) => {
@@ -125,7 +104,6 @@ const ReactionPills = ({ reactions, currentUsername, messageId, onReact, isOwn }
         const tip = users.length <= 3
           ? users.map(u => u === currentUsername ? 'You' : u).join(', ')
           : users.slice(0, 3).map(u => u === currentUsername ? 'You' : u).join(', ') + ` +${users.length - 3}`
-
         return (
           <button
             key={emoji}
@@ -133,7 +111,6 @@ const ReactionPills = ({ reactions, currentUsername, messageId, onReact, isOwn }
             title={tip}
             aria-label={`${emoji} ${users.length} — ${tip}`}
             className={`
-              reaction-pill
               flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs
               border transition-all duration-150 active:scale-90
               ${reacted
@@ -150,37 +127,129 @@ const ReactionPills = ({ reactions, currentUsername, messageId, onReact, isOwn }
   )
 }
 
+/* ─── Swipeable Message (WhatsApp / Instagram style reply) ──────────── */
+const SWIPE_THRESHOLD = 58   // px drag before reply fires
+const SWIPE_MAX       = 80   // max visual translation
+
+const SwipeableMessage = ({ children, onSwipe, isOwn }) => {
+  const startXRef   = useRef(null)
+  const rafRef      = useRef(null)
+  const triggeredRef = useRef(false)
+
+  const [translateX, setTranslateX] = useState(0)
+  const [dragging,   setDragging]   = useState(false)
+  const [triggered,  setTriggered]  = useState(false)
+
+  const commit = useCallback((x) => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => setTranslateX(x))
+  }, [])
+
+  const onTouchStart = useCallback((e) => {
+    if (e.touches.length !== 1) return
+    startXRef.current  = e.touches[0].clientX
+    triggeredRef.current = false
+    setTriggered(false)
+    setDragging(false)
+  }, [])
+
+  const onTouchMove = useCallback((e) => {
+    if (startXRef.current === null) return
+    const raw = e.touches[0].clientX - startXRef.current
+    // own messages swipe LEFT (negative), others swipe RIGHT (positive)
+    const ok = isOwn ? raw < 0 : raw > 0
+    if (!ok) return
+
+    const abs = Math.abs(raw)
+    if (abs > 6) {
+      setDragging(true)
+      e.preventDefault()   // block scroll while intentionally swiping
+    }
+
+    // Rubber-band: normal until threshold, then slow down
+    const visual = abs < SWIPE_THRESHOLD
+      ? abs
+      : SWIPE_THRESHOLD + (abs - SWIPE_THRESHOLD) * 0.25
+    const clamped = Math.min(visual, SWIPE_MAX)
+    commit(clamped * (isOwn ? -1 : 1))
+
+    if (abs >= SWIPE_THRESHOLD && !triggeredRef.current) {
+      triggeredRef.current = true
+      setTriggered(true)
+      if (navigator.vibrate) navigator.vibrate(12)
+    }
+  }, [isOwn, commit])
+
+  const onTouchEnd = useCallback(() => {
+    if (triggeredRef.current) onSwipe()
+    // Spring back
+    commit(0)
+    setDragging(false)
+    setTriggered(false)
+    startXRef.current    = null
+    triggeredRef.current = false
+  }, [onSwipe, commit])
+
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }, [])
+
+  const absX      = Math.abs(translateX)
+  const iconAlpha = Math.min(absX / SWIPE_THRESHOLD, 1)
+  const iconScale = 0.5 + 0.5 * Math.min(absX / SWIPE_THRESHOLD, 1)
+
+  return (
+    <div
+      className="relative overflow-hidden select-none"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      style={{ touchAction: dragging ? 'none' : 'pan-y' }}
+    >
+      {/* Reply icon peeking behind the bubble */}
+      <div
+        aria-hidden
+        className={`absolute inset-y-0 flex items-center px-2 pointer-events-none
+          ${isOwn ? 'left-1' : 'right-1'}`}
+        style={{
+          opacity: iconAlpha,
+          transform: `scale(${iconScale})`,
+          transition: dragging ? 'none' : 'opacity 0.25s, transform 0.25s',
+          color: triggered ? '#a78bfa' : '#9ca3af',
+        }}
+      >
+        <SwipeReplyIcon />
+      </div>
+
+      {/* Sliding content */}
+      <div
+        style={{
+          transform: `translateX(${translateX}px)`,
+          transition: dragging ? 'none' : 'transform 0.38s cubic-bezier(0.34,1.56,0.64,1)',
+          willChange: 'transform',
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 /* ─── Main Chat Component ────────────────────────────────────────────── */
 const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
   const [inputMessage, setInputMessage] = useState('')
-  const [replyTo, setReplyTo] = useState(null)
-  const [hoveredId, setHoveredId] = useState(null)
-  const [tappedId, setTappedId] = useState(null) // mobile tap-to-show buttons
-  const [pickerState, setPickerState] = useState(null) // { messageId, rect, isOwn }
+  const [replyTo,      setReplyTo]      = useState(null)
+  const [hoveredId,    setHoveredId]    = useState(null)
+  const [pickerState,  setPickerState]  = useState(null)
   const messagesEndRef = useRef(null)
-  const inputRef = useRef(null)
-  const messageRefs = useRef({})
+  const inputRef       = useRef(null)
+  const messageRefs    = useRef({})
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Focus input when reply is set
   useEffect(() => {
     if (replyTo) inputRef.current?.focus()
   }, [replyTo])
-
-  // Dismiss tapped buttons when touching outside a message bubble
-  useEffect(() => {
-    if (!tappedId) return
-    const handler = (e) => {
-      const insideBubble = e.target?.closest?.('[data-msg-bubble]')
-      if (!insideBubble) setTappedId(null)
-    }
-    document.addEventListener('touchstart', handler)
-    return () => document.removeEventListener('touchstart', handler)
-  }, [tappedId])
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -192,10 +261,10 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
     }
   }
 
-  const handleReply = (message) => {
+  const handleReply = useCallback((message) => {
     setReplyTo({ id: message.id, username: message.username, message: message.message })
     inputRef.current?.focus()
-  }
+  }, [])
 
   const cancelReply = () => {
     setReplyTo(null)
@@ -215,16 +284,8 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
   const togglePicker = useCallback((msgId, e, isOwn) => {
     if (!e || !e.currentTarget) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const cleanRect = {
-      top: rect.top,
-      bottom: rect.bottom,
-      left: rect.left,
-      right: rect.right,
-    }
-    setPickerState(prev => {
-      if (prev?.messageId === msgId) return null
-      return { messageId: msgId, rect: cleanRect, isOwn }
-    })
+    const cleanRect = { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right }
+    setPickerState(prev => prev?.messageId === msgId ? null : { messageId: msgId, rect: cleanRect, isOwn })
   }, [])
 
   const closePicker = useCallback(() => setPickerState(null), [])
@@ -235,147 +296,152 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-[220px] sm:min-h-[300px] bg-gray-900 sm:bg-transparent">
+    /* Use height:100% + minHeight:0 so this works inside ANY flex parent,
+       including floating/picture-in-picture windows on mobile */
+    <div
+      className="flex flex-col bg-gray-900 sm:bg-transparent"
+      style={{ height: '100%', minHeight: 0 }}
+    >
 
       {/* ── Chat Header ── */}
-      <div className="p-3 sm:p-4 border-b border-gray-700 flex justify-between items-center flex-shrink-0">
-        <h3 className="text-white font-semibold text-sm sm:text-base truncate">💬 Chat</h3>
-        <span className="ml-2 text-xs sm:text-sm text-gray-400">({messages.length} messages)</span>
+      <div className="px-3 py-2.5 border-b border-gray-700 flex justify-between items-center flex-shrink-0">
+        <h3 className="text-white font-semibold text-sm truncate">💬 Chat</h3>
+        <span className="ml-2 text-xs text-gray-400">({messages.length})</span>
       </div>
 
       {/* ── Messages ── */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 sm:space-y-3">
+      <div
+        className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-1"
+        style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
+      >
         {messages.length === 0 ? (
-          <div className="text-center text-gray-500 py-6 sm:py-8 px-2">
-            <div className="text-3xl sm:text-4xl mb-2">👋</div>
-            <p className="text-sm sm:text-base break-words">No messages yet. Start the conversation!</p>
+          <div className="text-center text-gray-500 py-8 px-2">
+            <div className="text-3xl mb-2">👋</div>
+            <p className="text-sm">No messages yet. Start the conversation!</p>
           </div>
         ) : (
           messages.map((message) => {
-            const isOwn = message.username === currentUsername
+            const isOwn        = message.username === currentUsername
             const isPickerOpen = pickerState?.messageId === message.id
-            const isHovered = hoveredId === message.id
-
-            const isTapped = tappedId === message.id
-            const showActions = isHovered || isPickerOpen || isTapped
+            const isHovered    = hoveredId === message.id
+            const showReactBtn = isHovered || isPickerOpen
 
             return (
               <div
                 key={message.id}
                 ref={(el) => { if (el) messageRefs.current[message.id] = el }}
-                className="group"
                 onMouseEnter={() => setHoveredId(message.id)}
                 onMouseLeave={() => setHoveredId(null)}
-                data-msg-bubble
-                onTouchStart={() => setTappedId(prev => prev === message.id ? null : message.id)}
               >
                 {/* ── System message ── */}
                 {message.type === 'system' ? (
-                  <div className="text-center text-gray-400 text-xs sm:text-sm py-1 px-1">
+                  <div className="text-center text-gray-400 text-xs py-1 px-1">
                     <span className="bg-gray-700 px-2 py-1 rounded break-words">{message.message}</span>
                   </div>
                 ) : (
-                  <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
+                  /* Swipe wrapper — handles touch gesture for reply */
+                  <SwipeableMessage isOwn={isOwn} onSwipe={() => handleReply(message)}>
+                    <div className={`flex flex-col py-0.5 ${isOwn ? 'items-end' : 'items-start'}`}>
 
-                    {/* Bubble + overlaid action buttons */}
-                    <div className={`relative max-w-[82%] sm:max-w-[75%] ${isOwn ? 'self-end' : 'self-start'}`}>
+                      {/* Bubble row: emoji react button sits inline beside bubble */}
+                      <div className={`flex items-end gap-1 max-w-[88%] sm:max-w-[78%] ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
 
-                      {/* ── Message bubble ── */}
-                      <div
-                        className={`rounded-2xl px-3 py-2 break-words shadow-sm ${
-                          isOwn
-                            ? 'bg-purple-600 text-white rounded-br-sm'
-                            : 'bg-gray-700 text-gray-100 rounded-bl-sm'
-                        }`}
-                      >
-                        {/* Sender name (other users only) */}
-                        {!isOwn && (
-                          <div className="text-[11px] sm:text-xs font-semibold mb-0.5 text-purple-300 truncate">
-                            {message.username}
-                          </div>
-                        )}
+                        {/* ── Message bubble ── */}
+                        <div
+                          className={`rounded-2xl px-3 py-2 break-words shadow-sm min-w-0 flex-shrink ${
+                            isOwn
+                              ? 'bg-purple-600 text-white rounded-br-sm'
+                              : 'bg-gray-700 text-gray-100 rounded-bl-sm'
+                          }`}
+                        >
+                          {/* Sender name (other users only) */}
+                          {!isOwn && (
+                            <div className="text-[11px] font-semibold mb-0.5 text-purple-300 truncate">
+                              {message.username}
+                            </div>
+                          )}
 
-                        {/* Reply quote */}
-                        {message.replyTo && (
+                          {/* Reply quote */}
+                          {message.replyTo && (
+                            <button
+                              onClick={() => scrollToMessage(message.replyTo.id)}
+                              className={`
+                                w-full text-left mb-1.5 px-2 py-1 rounded-lg text-xs
+                                border-l-2 border-purple-300
+                                ${isOwn ? 'bg-purple-700/60 hover:bg-purple-700/80' : 'bg-gray-600/60 hover:bg-gray-600/80'}
+                                transition-colors duration-150
+                              `}
+                            >
+                              <span className={`font-semibold block mb-0.5 ${isOwn ? 'text-purple-200' : 'text-purple-300'}`}>
+                                ↩ {message.replyTo.username === currentUsername ? 'You' : message.replyTo.username}
+                              </span>
+                              <span className={`block leading-snug line-clamp-2 ${isOwn ? 'text-purple-100/80' : 'text-gray-300/80'}`}>
+                                {truncate(message.replyTo.message)}
+                              </span>
+                            </button>
+                          )}
+
+                          {/* Message text */}
+                          <div className="break-words text-sm leading-snug">{message.message}</div>
+                        </div>
+
+                        {/* ── Action buttons beside bubble ── */}
+                        <div className={`flex flex-col items-center gap-0.5 flex-shrink-0 mb-0.5`}>
+
+                          {/* Reply button — desktop only (mobile uses swipe) */}
                           <button
-                            onClick={() => scrollToMessage(message.replyTo.id)}
+                            onClick={() => handleReply(message)}
+                            aria-label={`Reply to ${message.username}`}
                             className={`
-                              w-full text-left mb-1.5 px-2 py-1 rounded-lg text-xs
-                              border-l-2 border-purple-300
-                              ${isOwn ? 'bg-purple-700/60 hover:bg-purple-700/80' : 'bg-gray-600/60 hover:bg-gray-600/80'}
-                              transition-colors duration-150
+                              hidden sm:flex items-center justify-center
+                              p-1.5 rounded-full
+                              text-gray-400 hover:text-purple-300 hover:bg-gray-700/80
+                              transition-all duration-150
+                              ${showReactBtn
+                                ? 'opacity-100 scale-100 pointer-events-auto'
+                                : 'opacity-0 scale-75 pointer-events-none'}
                             `}
                           >
-                            <span className={`font-semibold block mb-0.5 ${isOwn ? 'text-purple-200' : 'text-purple-300'}`}>
-                              ↩ {message.replyTo.username === currentUsername ? 'You' : message.replyTo.username}
-                            </span>
-                            <span className={`block leading-snug truncate ${isOwn ? 'text-purple-100/80' : 'text-gray-300/80'}`}>
-                              {truncate(message.replyTo.message)}
-                            </span>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
+                              <path fillRule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.061.025Z" clipRule="evenodd" />
+                            </svg>
                           </button>
-                        )}
 
-                        {/* Message text */}
-                        <div className="break-words text-sm sm:text-base leading-snug">{message.message}</div>
+                          {/* Emoji react button — visible on both mobile and desktop */}
+                          <button
+                            data-reaction-picker-trigger="true"
+                            onClick={(e) => togglePicker(message.id, e, isOwn)}
+                            aria-label="Add reaction"
+                            aria-expanded={isPickerOpen}
+                            className={`
+                              flex items-center justify-center
+                              p-1.5 rounded-full
+                              transition-all duration-150
+                              ${isPickerOpen
+                                ? 'opacity-100 scale-100 bg-purple-600/40 text-purple-300 ring-1 ring-purple-400'
+                                : showReactBtn
+                                  ? 'opacity-100 scale-100 text-gray-400 hover:text-yellow-300 hover:bg-gray-700/80'
+                                  : 'opacity-0 scale-75 pointer-events-none text-gray-400'}
+                            `}
+                          >
+                            <span className="text-sm">😊</span>
+                          </button>
+                        </div>
                       </div>
 
-                      {/* ── Action buttons — float outside bubble, don't affect layout ── */}
-                      <div
-                        className={`
-                          absolute top-1/2 -translate-y-1/2
-                          flex flex-col items-center gap-0.5
-                          ${isOwn ? '-left-9' : '-right-9'}
-                        `}
-                      >
-                        {/* Reply */}
-                        <button
-                          onClick={() => handleReply(message)}
-                          aria-label={`Reply to ${message.username}`}
-                          className={`
-                            p-1.5 rounded-full
-                            text-gray-400 hover:text-purple-300 hover:bg-gray-700/80
-                            transition-all duration-150
-                            ${showActions
-                              ? 'opacity-100 scale-100 pointer-events-auto'
-                              : 'opacity-0 scale-75 pointer-events-none'}
-                          `}
-                        >
-                          <ReplyIcon />
-                        </button>
-
-                        {/* React emoji */}
-                        <button
-                          data-reaction-picker-trigger="true"
-                          onClick={(e) => togglePicker(message.id, e, isOwn)}
-                          aria-label="Add reaction"
-                          aria-expanded={isPickerOpen}
-                          title="React with emoji"
-                          className={`
-                            p-1.5 rounded-full
-                            transition-all duration-150
-                            ${isPickerOpen
-                              ? 'opacity-100 scale-100 bg-purple-600/40 text-purple-300 pointer-events-auto ring-1 ring-purple-400'
-                              : showActions
-                                ? 'opacity-100 scale-100 text-gray-400 hover:text-yellow-300 hover:bg-gray-700/80 pointer-events-auto'
-                                : 'opacity-0 scale-75 pointer-events-none text-gray-400'}
-                          `}
-                        >
-                          <span className="text-sm">😊</span>
-                        </button>
+                      {/* ── Reaction pills ── */}
+                      <div className="max-w-[88%] sm:max-w-[78%] w-full">
+                        <ReactionPills
+                          reactions={message.reactions}
+                          currentUsername={currentUsername}
+                          messageId={message.id}
+                          onReact={handleReact}
+                          isOwn={isOwn}
+                        />
                       </div>
-                    </div>
 
-                    {/* ── Reaction pills (below bubble, aligned with it) ── */}
-                    <div className="max-w-[82%] sm:max-w-[75%] w-full">
-                      <ReactionPills
-                        reactions={message.reactions}
-                        currentUsername={currentUsername}
-                        messageId={message.id}
-                        onReact={handleReact}
-                        isOwn={isOwn}
-                      />
                     </div>
-                  </div>
+                  </SwipeableMessage>
                 )}
               </div>
             )
@@ -384,7 +450,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ── Global Portaled Emoji Picker (Prevents any clipping in responsive) ── */}
+      {/* ── Global Portaled Emoji Picker ── */}
       {pickerState && typeof document !== 'undefined' && createPortal(
         <EmojiPicker
           triggerRect={pickerState.rect}
@@ -397,7 +463,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
 
       {/* ── Reply Preview Bar ── */}
       {replyTo && (
-        <div className="mx-2 sm:mx-4 mb-1 flex items-start gap-2 bg-gray-700/80 border border-gray-600 rounded-xl px-3 py-2 text-xs">
+        <div className="mx-2 mb-1 flex items-start gap-2 bg-gray-700/80 border border-purple-600/40 rounded-xl px-3 py-2 text-xs flex-shrink-0">
           <div className="flex-1 min-w-0">
             <span className="text-purple-300 font-semibold block mb-0.5">
               ↩ Replying to {replyTo.username === currentUsername ? 'yourself' : replyTo.username}
@@ -415,7 +481,10 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
       )}
 
       {/* ── Message Input ── */}
-      <div className="p-2 sm:p-3 border-t border-gray-700 bg-gray-800 sm:bg-transparent flex-shrink-0">
+      <div
+        className="px-2 pt-2 border-t border-gray-700 bg-gray-800 sm:bg-transparent flex-shrink-0"
+        style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
+      >
         <form onSubmit={handleSubmit} className="flex items-center gap-2">
           <input
             ref={inputRef}
@@ -423,7 +492,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             placeholder={replyTo ? `Reply to ${replyTo.username}…` : 'Type a message…'}
-            className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm transition-all"
+            className="flex-1 min-w-0 px-3 py-2 bg-gray-700 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm transition-all"
             maxLength={500}
           />
           <button
@@ -432,14 +501,13 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
             aria-label="Send message"
             className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-purple-500"
           >
-            {/* Send / Reply arrow icon */}
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-white">
               <path d="M3.105 2.288a.75.75 0 0 0-.826.95l1.414 4.926A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.897 28.897 0 0 0 15.293-7.154.75.75 0 0 0 0-1.115A28.897 28.897 0 0 0 3.105 2.288Z" />
             </svg>
           </button>
         </form>
-        <div className="text-[10px] sm:text-xs text-gray-500 mt-1 sm:mt-2 text-center sm:text-left">
-          Press Enter to send • {inputMessage.length}/500
+        <div className="text-[10px] text-gray-500 mt-1 text-center">
+          {'Message length '}• {inputMessage.length}/500
         </div>
       </div>
     </div>
