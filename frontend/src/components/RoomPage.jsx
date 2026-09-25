@@ -343,16 +343,17 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
               </button>
             </div>
 
-            {/* Tab Panels — must fill remaining height exactly */}
+            {/* Tab Panels — both always mounted so scroll position is preserved */}
             <div className="flex-1 min-h-0 overflow-hidden" style={{ height: 0 }}>
-              {activeTab === 'chat' ? (
+              <div style={{ display: activeTab === 'chat' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
                 <Chat
                   messages={messages}
                   onSendMessage={(msg, replyTo) => sendMessage(msg, replyTo)}
                   onReact={sendReaction}
                   currentUsername={username}
                 />
-              ) : (
+              </div>
+              <div style={{ display: activeTab === 'queue' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
                 <Queue
                   queue={roomState.queue || []}
                   onAdd={addToQueue}
@@ -361,7 +362,7 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
                   onReorder={reorderQueue}
                   currentUsername={username}
                 />
-              )}
+              </div>
             </div>
           </div>
         )}

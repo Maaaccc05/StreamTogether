@@ -265,18 +265,7 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
   // Track whether user is near the bottom so new messages auto-scroll
   const isAtBottomRef      = useRef(true)
 
-  // ── Restore scroll position when the component mounts (tab switch) ──
-  const savedScrollTopRef  = useRef(0)
-  useEffect(() => {
-    const el = scrollContainerRef.current
-    if (!el) return
-    // Restore saved position
-    el.scrollTop = savedScrollTopRef.current
-    return () => {
-      // Save position when unmounting (tab switch away)
-      savedScrollTopRef.current = el.scrollTop
-    }
-  }, [])
+
 
   // ── Track if user is near the bottom ──
   const handleScroll = useCallback(() => {
