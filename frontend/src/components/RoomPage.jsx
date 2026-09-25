@@ -168,7 +168,6 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
             </h1>
             <div className="bg-gray-700 px-2 lg:px-3 py-1 rounded-lg flex items-center gap-2">
               <div className="min-w-0">
-                <span className="text-xs lg:text-sm text-gray-300">Room: </span>
                 <span className="text-xs lg:text-sm font-mono text-white">{roomId}</span>
               </div>
               <button

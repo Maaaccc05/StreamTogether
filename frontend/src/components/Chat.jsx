@@ -132,9 +132,11 @@ const SWIPE_THRESHOLD = 58   // px drag before reply fires
 const SWIPE_MAX       = 80   // max visual translation
 
 const SwipeableMessage = ({ children, onSwipe, isOwn }) => {
-  const startXRef   = useRef(null)
-  const rafRef      = useRef(null)
+  const startXRef    = useRef(null)
+  const startYRef    = useRef(null)
+  const rafRef       = useRef(null)
   const triggeredRef = useRef(false)
+  const lockedRef    = useRef(null) // 'swipe' | 'scroll' | null
 
   const [translateX, setTranslateX] = useState(0)
   const [dragging,   setDragging]   = useState(false)
@@ -145,49 +147,66 @@ const SwipeableMessage = ({ children, onSwipe, isOwn }) => {
     rafRef.current = requestAnimationFrame(() => setTranslateX(x))
   }, [])
 
-  const onTouchStart = useCallback((e) => {
+  // These handlers are meant to be spread onto the BUBBLE element only
+  const bubbleTouchStart = useCallback((e) => {
     if (e.touches.length !== 1) return
-    startXRef.current  = e.touches[0].clientX
+    startXRef.current    = e.touches[0].clientX
+    startYRef.current    = e.touches[0].clientY
     triggeredRef.current = false
+    lockedRef.current    = null
     setTriggered(false)
     setDragging(false)
   }, [])
 
-  const onTouchMove = useCallback((e) => {
+  const bubbleTouchMove = useCallback((e) => {
     if (startXRef.current === null) return
-    const raw = e.touches[0].clientX - startXRef.current
+
+    const dx  = e.touches[0].clientX - startXRef.current
+    const dy  = e.touches[0].clientY - startYRef.current
+    const adx = Math.abs(dx)
+    const ady = Math.abs(dy)
+
+    // Determine lock direction once we know intent
+    if (lockedRef.current === null && (adx > 5 || ady > 5)) {
+      lockedRef.current = adx > ady ? 'swipe' : 'scroll'
+    }
+
+    // If user is scrolling vertically — do nothing, let native scroll happen
+    if (lockedRef.current === 'scroll') return
+
     // own messages swipe LEFT (negative), others swipe RIGHT (positive)
-    const ok = isOwn ? raw < 0 : raw > 0
+    const ok = isOwn ? dx < 0 : dx > 0
     if (!ok) return
 
-    const abs = Math.abs(raw)
-    if (abs > 6) {
+    if (adx > 6) {
       setDragging(true)
-      e.preventDefault()   // block scroll while intentionally swiping
+      e.preventDefault()   // block scroll only when truly swiping the bubble
     }
 
     // Rubber-band: normal until threshold, then slow down
-    const visual = abs < SWIPE_THRESHOLD
-      ? abs
-      : SWIPE_THRESHOLD + (abs - SWIPE_THRESHOLD) * 0.25
+    const visual = adx < SWIPE_THRESHOLD
+      ? adx
+      : SWIPE_THRESHOLD + (adx - SWIPE_THRESHOLD) * 0.25
     const clamped = Math.min(visual, SWIPE_MAX)
     commit(clamped * (isOwn ? -1 : 1))
 
-    if (abs >= SWIPE_THRESHOLD && !triggeredRef.current) {
+    if (adx >= SWIPE_THRESHOLD && !triggeredRef.current) {
       triggeredRef.current = true
       setTriggered(true)
       if (navigator.vibrate) navigator.vibrate(12)
     }
   }, [isOwn, commit])
 
-  const onTouchEnd = useCallback(() => {
+  const bubbleTouchEnd = useCallback(() => {
     if (triggeredRef.current) onSwipe()
     // Spring back
     commit(0)
     setDragging(false)
     setTriggered(false)
     startXRef.current    = null
+    startYRef.current    = null
     triggeredRef.current = false
+    lockedRef.current    = null
   }, [onSwipe, commit])
 
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }, [])
@@ -196,14 +215,21 @@ const SwipeableMessage = ({ children, onSwipe, isOwn }) => {
   const iconAlpha = Math.min(absX / SWIPE_THRESHOLD, 1)
   const iconScale = 0.5 + 0.5 * Math.min(absX / SWIPE_THRESHOLD, 1)
 
+  // Expose touch props + slide state to children via render-prop
+  const bubbleProps = {
+    onTouchStart: bubbleTouchStart,
+    onTouchMove:  bubbleTouchMove,
+    onTouchEnd:   bubbleTouchEnd,
+    style: {
+      transform:  `translateX(${translateX}px)`,
+      transition: dragging ? 'none' : 'transform 0.38s cubic-bezier(0.34,1.56,0.64,1)',
+      willChange: 'transform',
+      touchAction: lockedRef.current === 'swipe' ? 'none' : 'pan-y',
+    },
+  }
+
   return (
-    <div
-      className="relative overflow-hidden select-none"
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      style={{ touchAction: dragging ? 'none' : 'pan-y' }}
-    >
+    <div className="relative overflow-hidden select-none">
       {/* Reply icon peeking behind the bubble */}
       <div
         aria-hidden
@@ -219,16 +245,7 @@ const SwipeableMessage = ({ children, onSwipe, isOwn }) => {
         <SwipeReplyIcon />
       </div>
 
-      {/* Sliding content */}
-      <div
-        style={{
-          transform: `translateX(${translateX}px)`,
-          transition: dragging ? 'none' : 'transform 0.38s cubic-bezier(0.34,1.56,0.64,1)',
-          willChange: 'transform',
-        }}
-      >
-        {children}
-      </div>
+      {children(bubbleProps)}
     </div>
   )
 }
@@ -239,12 +256,43 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
   const [replyTo,      setReplyTo]      = useState(null)
   const [hoveredId,    setHoveredId]    = useState(null)
   const [pickerState,  setPickerState]  = useState(null)
-  const messagesEndRef = useRef(null)
-  const inputRef       = useRef(null)
-  const messageRefs    = useRef({})
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
 
+  const messagesEndRef     = useRef(null)
+  const scrollContainerRef = useRef(null)
+  const inputRef           = useRef(null)
+  const messageRefs        = useRef({})
+  // Track whether user is near the bottom so new messages auto-scroll
+  const isAtBottomRef      = useRef(true)
+
+  // ── Restore scroll position when the component mounts (tab switch) ──
+  const savedScrollTopRef  = useRef(0)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = scrollContainerRef.current
+    if (!el) return
+    // Restore saved position
+    el.scrollTop = savedScrollTopRef.current
+    return () => {
+      // Save position when unmounting (tab switch away)
+      savedScrollTopRef.current = el.scrollTop
+    }
+  }, [])
+
+  // ── Track if user is near the bottom ──
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    const atBottom = distanceFromBottom < 80
+    isAtBottomRef.current = atBottom
+    setShowScrollBtn(!atBottom)
+  }, [])
+
+  // ── Auto-scroll only when user is already at the bottom ──
+  useEffect(() => {
+    if (isAtBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages])
 
   useEffect(() => {
@@ -300,11 +348,13 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
        including floating/picture-in-picture windows on mobile */
     <div
       className="flex flex-col bg-gray-900 sm:bg-transparent"
-      style={{ height: '100%', minHeight: 0 }}
+      style={{ height: '100%', minHeight: 0, position: 'relative' }}
     >
 
       {/* ── Messages ── */}
       <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-1"
         style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
       >
@@ -333,108 +383,111 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
                     <span className="bg-gray-700 px-2 py-1 rounded break-words">{message.message}</span>
                   </div>
                 ) : (
-                  /* Swipe wrapper — handles touch gesture for reply */
+                  /* Swipe wrapper — touch handlers scoped to the bubble only */
                   <SwipeableMessage isOwn={isOwn} onSwipe={() => handleReply(message)}>
-                    <div className={`flex flex-col py-0.5 ${isOwn ? 'items-end' : 'items-start'}`}>
+                    {(bubbleProps) => (
+                      <div className={`flex flex-col py-0.5 ${isOwn ? 'items-end' : 'items-start'}`}>
 
-                      {/* Bubble row: emoji react button sits inline beside bubble */}
-                      <div className={`flex items-end gap-1 max-w-[88%] sm:max-w-[78%] ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+                        {/* Bubble row: emoji react button sits inline beside bubble */}
+                        <div className={`flex items-end gap-1 max-w-[88%] sm:max-w-[78%] ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
 
-                        {/* ── Message bubble ── */}
-                        <div
-                          className={`rounded-2xl px-3 py-2 break-words shadow-sm min-w-0 flex-shrink ${
-                            isOwn
-                              ? 'bg-purple-600 text-white rounded-br-sm'
-                              : 'bg-gray-700 text-gray-100 rounded-bl-sm'
-                          }`}
-                        >
-                          {/* Sender name (other users only) */}
-                          {!isOwn && (
-                            <div className="text-[11px] font-semibold mb-0.5 text-purple-300 truncate">
-                              {message.username}
-                            </div>
-                          )}
+                          {/* ── Message bubble — swipe handlers live HERE only ── */}
+                          <div
+                            {...bubbleProps}
+                            className={`rounded-2xl px-3 py-2 break-words shadow-sm min-w-0 flex-shrink ${
+                              isOwn
+                                ? 'bg-purple-600 text-white rounded-br-sm'
+                                : 'bg-gray-700 text-gray-100 rounded-bl-sm'
+                            }`}
+                          >
+                            {/* Sender name (other users only) */}
+                            {!isOwn && (
+                              <div className="text-[11px] font-semibold mb-0.5 text-purple-300 truncate">
+                                {message.username}
+                              </div>
+                            )}
 
-                          {/* Reply quote */}
-                          {message.replyTo && (
+                            {/* Reply quote */}
+                            {message.replyTo && (
+                              <button
+                                onClick={() => scrollToMessage(message.replyTo.id)}
+                                className={`
+                                  w-full text-left mb-1.5 px-2 py-1 rounded-lg text-xs
+                                  border-l-2 border-purple-300
+                                  ${isOwn ? 'bg-purple-700/60 hover:bg-purple-700/80' : 'bg-gray-600/60 hover:bg-gray-600/80'}
+                                  transition-colors duration-150
+                                `}
+                              >
+                                <span className={`font-semibold block mb-0.5 ${isOwn ? 'text-purple-200' : 'text-purple-300'}`}>
+                                  ↩ {message.replyTo.username === currentUsername ? 'You' : message.replyTo.username}
+                                </span>
+                                <span className={`block leading-snug line-clamp-2 ${isOwn ? 'text-purple-100/80' : 'text-gray-300/80'}`}>
+                                  {truncate(message.replyTo.message)}
+                                </span>
+                              </button>
+                            )}
+
+                            {/* Message text */}
+                            <div className="break-words text-sm leading-snug">{message.message}</div>
+                          </div>
+
+                          {/* ── Action buttons beside bubble ── */}
+                          <div className={`flex flex-col items-center gap-0.5 flex-shrink-0 mb-0.5`}>
+
+                            {/* Reply button — desktop only (mobile uses swipe) */}
                             <button
-                              onClick={() => scrollToMessage(message.replyTo.id)}
+                              onClick={() => handleReply(message)}
+                              aria-label={`Reply to ${message.username}`}
                               className={`
-                                w-full text-left mb-1.5 px-2 py-1 rounded-lg text-xs
-                                border-l-2 border-purple-300
-                                ${isOwn ? 'bg-purple-700/60 hover:bg-purple-700/80' : 'bg-gray-600/60 hover:bg-gray-600/80'}
-                                transition-colors duration-150
+                                hidden sm:flex items-center justify-center
+                                p-1.5 rounded-full
+                                text-gray-400 hover:text-purple-300 hover:bg-gray-700/80
+                                transition-all duration-150
+                                ${showReactBtn
+                                  ? 'opacity-100 scale-100 pointer-events-auto'
+                                  : 'opacity-0 scale-75 pointer-events-none'}
                               `}
                             >
-                              <span className={`font-semibold block mb-0.5 ${isOwn ? 'text-purple-200' : 'text-purple-300'}`}>
-                                ↩ {message.replyTo.username === currentUsername ? 'You' : message.replyTo.username}
-                              </span>
-                              <span className={`block leading-snug line-clamp-2 ${isOwn ? 'text-purple-100/80' : 'text-gray-300/80'}`}>
-                                {truncate(message.replyTo.message)}
-                              </span>
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
+                                <path fillRule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.061.025Z" clipRule="evenodd" />
+                              </svg>
                             </button>
-                          )}
 
-                          {/* Message text */}
-                          <div className="break-words text-sm leading-snug">{message.message}</div>
+                            {/* Emoji react button — visible on both mobile and desktop */}
+                            <button
+                              data-reaction-picker-trigger="true"
+                              onClick={(e) => togglePicker(message.id, e, isOwn)}
+                              aria-label="Add reaction"
+                              aria-expanded={isPickerOpen}
+                              className={`
+                                flex items-center justify-center
+                                p-1.5 rounded-full
+                                transition-all duration-150
+                                ${isPickerOpen
+                                  ? 'opacity-100 scale-100 bg-purple-600/40 text-purple-300 ring-1 ring-purple-400'
+                                  : showReactBtn
+                                    ? 'opacity-100 scale-100 text-gray-400 hover:text-yellow-300 hover:bg-gray-700/80'
+                                    : 'opacity-0 scale-75 pointer-events-none text-gray-400'}
+                              `}
+                            >
+                              <span className="text-sm">😊</span>
+                            </button>
+                          </div>
                         </div>
 
-                        {/* ── Action buttons beside bubble ── */}
-                        <div className={`flex flex-col items-center gap-0.5 flex-shrink-0 mb-0.5`}>
-
-                          {/* Reply button — desktop only (mobile uses swipe) */}
-                          <button
-                            onClick={() => handleReply(message)}
-                            aria-label={`Reply to ${message.username}`}
-                            className={`
-                              hidden sm:flex items-center justify-center
-                              p-1.5 rounded-full
-                              text-gray-400 hover:text-purple-300 hover:bg-gray-700/80
-                              transition-all duration-150
-                              ${showReactBtn
-                                ? 'opacity-100 scale-100 pointer-events-auto'
-                                : 'opacity-0 scale-75 pointer-events-none'}
-                            `}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
-                              <path fillRule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.061.025Z" clipRule="evenodd" />
-                            </svg>
-                          </button>
-
-                          {/* Emoji react button — visible on both mobile and desktop */}
-                          <button
-                            data-reaction-picker-trigger="true"
-                            onClick={(e) => togglePicker(message.id, e, isOwn)}
-                            aria-label="Add reaction"
-                            aria-expanded={isPickerOpen}
-                            className={`
-                              flex items-center justify-center
-                              p-1.5 rounded-full
-                              transition-all duration-150
-                              ${isPickerOpen
-                                ? 'opacity-100 scale-100 bg-purple-600/40 text-purple-300 ring-1 ring-purple-400'
-                                : showReactBtn
-                                  ? 'opacity-100 scale-100 text-gray-400 hover:text-yellow-300 hover:bg-gray-700/80'
-                                  : 'opacity-0 scale-75 pointer-events-none text-gray-400'}
-                            `}
-                          >
-                            <span className="text-sm">😊</span>
-                          </button>
+                        {/* ── Reaction pills ── */}
+                        <div className="max-w-[88%] sm:max-w-[78%] w-full">
+                          <ReactionPills
+                            reactions={message.reactions}
+                            currentUsername={currentUsername}
+                            messageId={message.id}
+                            onReact={handleReact}
+                            isOwn={isOwn}
+                          />
                         </div>
-                      </div>
 
-                      {/* ── Reaction pills ── */}
-                      <div className="max-w-[88%] sm:max-w-[78%] w-full">
-                        <ReactionPills
-                          reactions={message.reactions}
-                          currentUsername={currentUsername}
-                          messageId={message.id}
-                          onReact={handleReact}
-                          isOwn={isOwn}
-                        />
                       </div>
-
-                    </div>
+                    )}
                   </SwipeableMessage>
                 )}
               </div>
@@ -454,6 +507,44 @@ const Chat = ({ messages, onSendMessage, onReact, currentUsername }) => {
         />,
         document.body
       )}
+
+      {/* ── Scroll-to-bottom button ── */}
+      <div
+        aria-hidden={!showScrollBtn}
+        style={{
+          position: 'absolute',
+          bottom: replyTo ? '132px' : '80px',
+          right: '12px',
+          zIndex: 50,
+          opacity: showScrollBtn ? 1 : 0,
+          transform: showScrollBtn ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.85)',
+          transition: 'opacity 0.22s ease, transform 0.22s ease, bottom 0.22s ease',
+          pointerEvents: showScrollBtn ? 'auto' : 'none',
+        }}
+      >
+        <button
+          onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+          aria-label="Scroll to latest message"
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            background: 'rgba(147,51,234,0.85)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(167,139,250,0.4)',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: '#fff',
+          }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+            <path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v10.638l3.96-4.158a.75.75 0 1 1 1.08 1.04l-5.25 5.5a.75.75 0 0 1-1.08 0l-5.25-5.5a.75.75 0 1 1 1.08-1.04l3.96 4.158V3.75A.75.75 0 0 1 10 3Z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
 
       {/* ── Reply Preview Bar ── */}
       {replyTo && (
