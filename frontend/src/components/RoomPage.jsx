@@ -156,15 +156,15 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="h-screen overflow-hidden bg-gray-900 flex flex-col">
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700 px-3 lg:px-6 py-2 lg:py-4">
+      <div className="bg-gray-800 border-b border-gray-700 px-3 lg:px-6 py-2 lg:py-4 flex-shrink-0">
         <div className="flex items-center justify-between gap-2">
 
           {/* Left — branding + room code */}
           <div className="flex items-center gap-2 lg:gap-4 min-w-0">
             <h1 className="text-base lg:text-2xl font-bold text-white whitespace-nowrap">
-              🎬 StreamTogether
+              StreamTogether
             </h1>
             <div className="bg-gray-700 px-2 lg:px-3 py-1 rounded-lg flex items-center gap-2">
               <div className="min-w-0">
@@ -276,8 +276,7 @@ const RoomPage = ({ roomId, username, onLeaveRoom }) => {
 
       {/* Main Content */}
       <div
-        className="flex flex-col lg:flex-row overflow-hidden"
-        style={{ height: 'calc(100dvh - 56px)', minHeight: 0 }}
+        className="flex flex-col lg:flex-row overflow-hidden flex-1 min-h-0"
       >
         {/* Video Section — shrinks to content on mobile, fixed aspect on desktop */}
         <div className="flex-shrink-0 lg:flex-1 flex flex-col overflow-hidden">
